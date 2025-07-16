@@ -1,4 +1,4 @@
-import { useState, useContext } from "react"; // Add useContext if using AuthContext
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -39,8 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertWorkspaceSchema } from "@shared/schema";
 
-// Assuming you have an AuthContext or similar to get the current user's ID
-import { AuthContext } from "@/context/AuthContext"; // Adjust based on your setup
+import { useAuth } from "@/hooks/useAuth";
 
 interface WorkspaceSelectorProps {
   currentWorkspaceId?: number;
@@ -51,8 +50,8 @@ export default function WorkspaceSelector({
   currentWorkspaceId,
   onWorkspaceChange,
 }: WorkspaceSelectorProps) {
-  // Get the current user's ID from context (or another source)
-  const { user } = useContext(AuthContext); // Adjust based on your auth setup
+  // Get the current user's ID from the useAuth hook
+  const { user } = useAuth();
   const ownerId = user?.id; // Ensure this is a string as per the schema
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
