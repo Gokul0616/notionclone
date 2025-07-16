@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+
+  /* Notion-specific colors */
+  --notion-bg: hsl(0, 0%, 100%);
+  --notion-sidebar: hsl(45, 25%, 97%);
+  --notion-text: hsl(0, 0%, 18%);
+  --notion-heading: hsl(20, 14%, 23%);
+  --notion-secondary: hsl(0, 0%, 44%);
+  --notion-border: hsl(40, 10%, 91%);
+  --notion-border-dark: hsl(30, 9%, 83%);
+  --notion-accent: hsl(207, 90%, 54%);
+  --notion-hover: hsl(44, 31%, 94%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+
+  /* Notion-specific dark colors */
+  --notion-bg: hsl(240, 10%, 3.9%);
+  --notion-sidebar: hsl(240, 6%, 6%);
+  --notion-text: hsl(0, 0%, 90%);
+  --notion-heading: hsl(0, 0%, 98%);
+  --notion-secondary: hsl(240, 5%, 64.9%);
+  --notion-border: hsl(240, 3.7%, 15.9%);
+  --notion-border-dark: hsl(240, 5%, 20%);
+  --notion-accent: hsl(207, 90%, 54%);
+  --notion-hover: hsl(240, 3.7%, 15.9%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--notion-bg);
+    color: var(--notion-text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .notion-transition {
+    transition: all 0.15s ease;
+  }
+
+  .notion-sidebar {
+    background-color: var(--notion-sidebar);
+    border-color: var(--notion-border);
+  }
+
+  .notion-text {
+    color: var(--notion-text);
+  }
+
+  .notion-heading {
+    color: var(--notion-heading);
+  }
+
+  .notion-secondary {
+    color: var(--notion-secondary);
+  }
+
+  .notion-hover:hover {
+    background-color: var(--notion-hover);
+  }
+
+  .notion-border {
+    border-color: var(--notion-border);
+  }
+
+  /* Rich text editor styles */
+  .block-editor {
+    outline: none;
+    line-height: 1.6;
+  }
+
+  .block-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--notion-secondary);
+    pointer-events: none;
+  }
+
+  .block-editor h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 1rem 0 0.5rem 0;
+    color: var(--notion-heading);
+  }
+
+  .block-editor h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem 0;
+    color: var(--notion-heading);
+  }
+
+  .block-editor h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+    color: var(--notion-heading);
+  }
+
+  .block-editor ul {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .block-editor li {
+    position: relative;
+    padding-left: 1.5rem;
+  }
+
+  .block-editor li::before {
+    content: "•";
+    position: absolute;
+    left: 0.5rem;
+    color: var(--notion-secondary);
+  }
+
+  .block-editor code {
+    background-color: var(--notion-hover);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+  }
+
+  .block-controls {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .block-wrapper:hover .block-controls {
+    opacity: 1;
+  }
+}
