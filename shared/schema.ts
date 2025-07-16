@@ -1,322 +1,291 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, uuid } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, blob, real } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Users table - enhanced with team collaboration features
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().notNull(),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  username: varchar("username").unique(),
-  password: varchar("password"), // for credential-based auth
-  preferences: jsonb("preferences"), // user settings, theme, etc.
-  timezone: varchar("timezone").default("UTC"),
-  theme: varchar("theme").default("system"),
-  language: varchar("language").default("en"),
-  notifications: jsonb("notifications").$type<{
-    email: boolean;
-    desktop: boolean;
-    mentions: boolean;
-    comments: boolean;
-  }>().default({
-    email: true,
-    desktop: true,
-    mentions: true,
-    comments: true,
-  }),
-  privacy: jsonb("privacy").$type<{
-    profileVisible: boolean;
-    activityVisible: boolean;
-  }>().default({
-    profileVisible: true,
-    activityVisible: true,
-  }),
-  gmailRefreshToken: varchar("gmail_refresh_token"),
-  gmailAccessToken: varchar("gmail_access_token"),
-  gmailTokenExpiry: timestamp("gmail_token_expiry"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey().notNull(),
+  email: text("email").unique(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  profileImageUrl: text("profile_image_url"),
+  username: text("username").unique(),
+  password: text("password"), // for credential-based auth
+  preferences: text("preferences"), // user settings, theme, etc. (JSON string)
+  timezone: text("timezone").default("UTC"),
+  theme: text("theme").default("system"),
+  language: text("language").default("en"),
+  notifications: text("notifications").default('{"email":true,"desktop":true,"mentions":true,"comments":true}'),
+  privacy: text("privacy").default('{"profileVisible":true,"activityVisible":true}'),
+  gmailRefreshToken: text("gmail_refresh_token"),
+  gmailAccessToken: text("gmail_access_token"),
+  gmailTokenExpiry: integer("gmail_token_expiry"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Multi-factor authentication table
-export const userMFA = pgTable("user_mfa", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull(),
-  secret: varchar("secret").notNull(),
-  backupCodes: jsonb("backup_codes").$type<string[]>().default([]),
-  isEnabled: boolean("is_enabled").default(false),
-  lastUsed: timestamp("last_used"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const userMFA = sqliteTable("user_mfa", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").default('[]'), // JSON string
+  isEnabled: integer("is_enabled", { mode: "boolean" }).default(false),
+  lastUsed: integer("last_used"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Business pages table for enterprise features
-export const businessPages = pgTable("business_pages", {
-  id: serial("id").primaryKey(),
+export const businessPages = sqliteTable("business_pages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   workspaceId: integer("workspace_id").notNull(),
   pageId: integer("page_id").notNull(),
   businessType: text("business_type").notNull(), // dashboard, analytics, reports, etc.
-  configuration: jsonb("configuration").default({}),
-  permissions: jsonb("permissions").$type<{
-    canView: string[];
-    canEdit: string[];
-    canShare: string[];
-    canAnalyze: string[];
-  }>().default({
-    canView: [],
-    canEdit: [],
-    canShare: [],
-    canAnalyze: []
-  }),
-  createdBy: varchar("created_by").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  configuration: text("configuration").default('{}'), // JSON string
+  permissions: text("permissions").default('{"canView":[],"canEdit":[],"canShare":[],"canAnalyze":[]}'),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Sharing and collaboration table
-export const pageShares = pgTable("page_shares", {
-  id: serial("id").primaryKey(),
+export const pageShares = sqliteTable("page_shares", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   pageId: integer("page_id").notNull(),
-  sharedBy: varchar("shared_by").notNull(),
-  sharedWith: varchar("shared_with"), // null for public shares
+  sharedBy: text("shared_by").notNull(),
+  sharedWith: text("shared_with"), // null for public shares
   shareType: text("share_type").notNull(), // public, private, workspace
   permissions: text("permissions").notNull(), // view, edit, comment
-  token: varchar("token").notNull().unique(),
-  password: varchar("password"), // optional password protection
-  expiresAt: timestamp("expires_at"),
-  allowDownload: boolean("allow_download").default(false),
-  allowComments: boolean("allow_comments").default(true),
-  isActive: boolean("is_active").default(true),
+  token: text("token").notNull().unique(),
+  password: text("password"), // optional password protection
+  expiresAt: integer("expires_at"), // timestamp
+  allowDownload: integer("allow_download", { mode: "boolean" }).default(false),
+  allowComments: integer("allow_comments", { mode: "boolean" }).default(true),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
   viewCount: integer("view_count").default(0),
-  lastAccessed: timestamp("last_accessed"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  lastAccessed: integer("last_accessed"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Real-time collaboration cursors
-export const collaborationCursors = pgTable("collaboration_cursors", {
-  id: serial("id").primaryKey(),
+export const collaborationCursors = sqliteTable("collaboration_cursors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   pageId: integer("page_id").notNull(),
-  userId: varchar("user_id").notNull(),
+  userId: text("user_id").notNull(),
   x: integer("x").notNull(),
   y: integer("y").notNull(),
-  timestamp: timestamp("timestamp").defaultNow(),
-  sessionId: varchar("session_id").notNull(),
+  timestamp: integer("timestamp").default(Date.now()),
+  sessionId: text("session_id").notNull(),
 });
 
 // Live presence tracking
-export const livePresence = pgTable("live_presence", {
-  id: serial("id").primaryKey(),
+export const livePresence = sqliteTable("live_presence", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   pageId: integer("page_id").notNull(),
-  userId: varchar("user_id").notNull(),
+  userId: text("user_id").notNull(),
   status: text("status").notNull(), // active, typing, viewing
-  lastSeen: timestamp("last_seen").defaultNow(),
+  lastSeen: integer("last_seen").default(Date.now()),
   currentBlock: integer("current_block"),
-  sessionId: varchar("session_id").notNull(),
+  sessionId: text("session_id").notNull(),
 });
 
 // Workspaces table - team workspaces
-export const workspaces = pgTable("workspaces", {
-  id: serial("id").primaryKey(),
+export const workspaces = sqliteTable("workspaces", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   type: text("type").default("personal"), // personal, business
   description: text("description"),
   icon: text("icon").default("🏢"),
   domain: text("domain").unique(),
-  ownerId: varchar("owner_id").notNull(),
+  ownerId: text("owner_id").notNull(),
   plan: text("plan").default("free"), // free, personal, team, enterprise
-  settings: jsonb("settings"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  settings: text("settings"), // JSON string
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Workspace members - user roles in workspaces
-export const workspaceMembers = pgTable("workspace_members", {
-  id: serial("id").primaryKey(),
+export const workspaceMembers = sqliteTable("workspace_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   workspaceId: integer("workspace_id").notNull(),
-  userId: varchar("user_id").notNull(),
+  userId: text("user_id").notNull(),
   role: text("role").notNull(), // owner, admin, member, guest
-  permissions: jsonb("permissions"),
-  joinedAt: timestamp("joined_at").defaultNow(),
+  permissions: text("permissions"), // JSON string
+  joinedAt: integer("joined_at").default(Date.now()),
 });
 
 // Member invitations
-export const invitations = pgTable("invitations", {
-  id: serial("id").primaryKey(),
+export const invitations = sqliteTable("invitations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   workspaceId: integer("workspace_id").notNull(),
   email: text("email").notNull(),
   role: text("role").notNull(),
-  invitedBy: varchar("invited_by").notNull(),
+  invitedBy: text("invited_by").notNull(),
   token: text("token").notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  acceptedAt: timestamp("accepted_at"),
-  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: integer("expires_at").notNull(), // timestamp
+  acceptedAt: integer("accepted_at"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
 });
 
 // Templates table
-export const templates = pgTable("templates", {
-  id: serial("id").primaryKey(),
+export const templates = sqliteTable("templates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   description: text("description"),
   icon: text("icon").default("📋"),
   category: text("category").notNull(), // personal, team, engineering, design, etc.
-  content: jsonb("content").notNull(), // template structure
-  isPublic: boolean("is_public").default(false),
-  createdBy: varchar("created_by").notNull(),
+  content: text("content").notNull(), // template structure (JSON string)
+  isPublic: integer("is_public", { mode: "boolean" }).default(false),
+  createdBy: text("created_by").notNull(),
   workspaceId: integer("workspace_id"),
   usageCount: integer("usage_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Pages table - enhanced with workspace support
-export const pages = pgTable("pages", {
-  id: serial("id").primaryKey(),
+export const pages = sqliteTable("pages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   icon: text("icon").default("📄"),
   cover: text("cover"), // cover image URL
   parentId: integer("parent_id"),
   workspaceId: integer("workspace_id").notNull(),
-  createdBy: varchar("created_by").notNull(),
-  lastEditedBy: varchar("last_edited_by"),
-  isPublic: boolean("is_public").default(false),
+  createdBy: text("created_by").notNull(),
+  lastEditedBy: text("last_edited_by"),
+  isPublic: integer("is_public", { mode: "boolean" }).default(false),
   publicId: text("public_id").unique(), // for public sharing
-  permissions: jsonb("permissions"), // page-level permissions
-  properties: jsonb("properties"), // custom properties
-  isTemplate: boolean("is_template").default(false),
+  permissions: text("permissions"), // page-level permissions (JSON string)
+  properties: text("properties"), // custom properties (JSON string)
+  isTemplate: integer("is_template", { mode: "boolean" }).default(false),
   templateId: integer("template_id"),
-  isFavorite: boolean("is_favorite").default(false),
-  isArchived: boolean("is_archived").default(false),
-  isDeleted: boolean("is_deleted").default(false),
-  deletedAt: timestamp("deleted_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
+  isArchived: integer("is_archived", { mode: "boolean" }).default(false),
+  isDeleted: integer("is_deleted", { mode: "boolean" }).default(false),
+  deletedAt: integer("deleted_at"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
-export const blocks = pgTable("blocks", {
-  id: serial("id").primaryKey(),
+export const blocks = sqliteTable("blocks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   pageId: integer("page_id").notNull(),
   type: text("type").notNull(), // text, header, list, code, todo, quote, divider, image, video, audio, file, database, callout, toggle, etc.
-  content: jsonb("content"), // flexible content storage
+  content: text("content"), // flexible content storage (JSON string)
   position: integer("position").notNull(),
   parentId: integer("parent_id"), // for nested blocks (toggles, etc.)
-  properties: jsonb("properties"), // additional block properties (color, formatting, etc.)
-  createdBy: varchar("created_by").notNull(),
-  lastEditedBy: varchar("last_edited_by"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  properties: text("properties"), // additional block properties (color, formatting, etc.) (JSON string)
+  createdBy: text("created_by").notNull(),
+  lastEditedBy: text("last_edited_by"),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Comments and discussions
-export const comments = pgTable("comments", {
-  id: serial("id").primaryKey(),
+export const comments = sqliteTable("comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   pageId: integer("page_id"),
   blockId: integer("block_id"),
   content: text("content").notNull(),
-  authorId: varchar("author_id").notNull(),
+  authorId: text("author_id").notNull(),
   parentId: integer("parent_id"), // for threaded comments
-  isResolved: boolean("is_resolved").default(false),
-  resolvedBy: varchar("resolved_by"),
-  resolvedAt: timestamp("resolved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isResolved: integer("is_resolved", { mode: "boolean" }).default(false),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: integer("resolved_at"), // timestamp
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Activity log for tracking changes
-export const activities = pgTable("activities", {
-  id: serial("id").primaryKey(),
+export const activities = sqliteTable("activities", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   workspaceId: integer("workspace_id").notNull(),
-  userId: varchar("user_id").notNull(),
+  userId: text("user_id").notNull(),
   action: text("action").notNull(), // created, updated, deleted, shared, etc.
   resourceType: text("resource_type").notNull(), // page, block, workspace, etc.
   resourceId: text("resource_id").notNull(),
-  metadata: jsonb("metadata"), // additional context
-  createdAt: timestamp("created_at").defaultNow(),
+  metadata: text("metadata"), // additional context (JSON string)
+  createdAt: integer("created_at").default(Date.now()),
 });
 
 // Notifications
-export const notifications = pgTable("notifications", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull(),
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
   type: text("type").notNull(), // mention, comment, invite, etc.
   title: text("title").notNull(),
   message: text("message"),
-  data: jsonb("data"), // additional data for the notification
-  isRead: boolean("is_read").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
+  data: text("data"), // additional data for the notification (JSON string)
+  isRead: integer("is_read", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at").default(Date.now()),
 });
 
 // Session storage table for auth
-export const sessions = pgTable("sessions", {
-  sid: varchar("sid").primaryKey(),
-  sess: jsonb("sess").notNull(),
-  expire: timestamp("expire").notNull(),
+export const sessions = sqliteTable("sessions", {
+  sid: text("sid").primaryKey(),
+  sess: text("sess").notNull(), // JSON string
+  expire: integer("expire").notNull(), // timestamp
 });
 
 // Calendar events table
-export const calendarEvents = pgTable("calendar_events", {
-  id: serial("id").primaryKey(),
+export const calendarEvents = sqliteTable("calendar_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   description: text("description"),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
+  startDate: integer("start_date").notNull(), // timestamp
+  endDate: integer("end_date").notNull(), // timestamp
   location: text("location"),
   type: text("type").notNull(), // meeting, task, reminder, deadline
-  attendees: jsonb("attendees").$type<string[]>().default([]),
+  attendees: text("attendees").default('[]'), // JSON string
   workspaceId: integer("workspace_id").notNull(),
   pageId: integer("page_id"), // optional link to page
-  createdBy: varchar("created_by").notNull(),
-  isAllDay: boolean("is_all_day").default(false),
+  createdBy: text("created_by").notNull(),
+  isAllDay: integer("is_all_day", { mode: "boolean" }).default(false),
   recurrence: text("recurrence").default("none"), // none, daily, weekly, monthly
   status: text("status").default("confirmed"), // confirmed, tentative, cancelled
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Email threads table for Gmail integration
-export const emailThreads = pgTable("email_threads", {
-  id: varchar("id").primaryKey(),
-  gmailThreadId: varchar("gmail_thread_id").notNull(),
+export const emailThreads = sqliteTable("email_threads", {
+  id: text("id").primaryKey(),
+  gmailThreadId: text("gmail_thread_id").notNull(),
   subject: text("subject").notNull(),
-  participants: jsonb("participants").$type<string[]>().default([]),
+  participants: text("participants").default('[]'), // JSON string
   messageCount: integer("message_count").default(1),
-  lastMessageDate: timestamp("last_message_date").notNull(),
-  isRead: boolean("is_read").default(false),
-  isStarred: boolean("is_starred").default(false),
-  labels: jsonb("labels").$type<string[]>().default([]),
+  lastMessageDate: integer("last_message_date").notNull(), // timestamp
+  isRead: integer("is_read", { mode: "boolean" }).default(false),
+  isStarred: integer("is_starred", { mode: "boolean" }).default(false),
+  labels: text("labels").default('[]'), // JSON string
   workspaceId: integer("workspace_id").notNull(),
-  userId: varchar("user_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  userId: text("user_id").notNull(),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Email messages table
-export const emailMessages = pgTable("email_messages", {
-  id: varchar("id").primaryKey(),
-  gmailMessageId: varchar("gmail_message_id").notNull(),
-  threadId: varchar("thread_id").notNull(),
+export const emailMessages = sqliteTable("email_messages", {
+  id: text("id").primaryKey(),
+  gmailMessageId: text("gmail_message_id").notNull(),
+  threadId: text("thread_id").notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   fromEmail: text("from_email").notNull(),
-  toEmails: jsonb("to_emails").$type<string[]>().default([]),
-  ccEmails: jsonb("cc_emails").$type<string[]>().default([]),
-  bccEmails: jsonb("bcc_emails").$type<string[]>().default([]),
-  date: timestamp("date").notNull(),
-  isRead: boolean("is_read").default(false),
-  isStarred: boolean("is_starred").default(false),
-  labels: jsonb("labels").$type<string[]>().default([]),
-  attachments: jsonb("attachments").$type<Array<{
-    filename: string;
-    size: number;
-    contentType: string;
-    attachmentId: string;
-  }>>().default([]),
+  toEmails: text("to_emails").default('[]'), // JSON string
+  ccEmails: text("cc_emails").default('[]'), // JSON string
+  bccEmails: text("bcc_emails").default('[]'), // JSON string
+  date: integer("date").notNull(), // timestamp
+  isRead: integer("is_read", { mode: "boolean" }).default(false),
+  isStarred: integer("is_starred", { mode: "boolean" }).default(false),
+  labels: text("labels").default('[]'), // JSON string
+  attachments: text("attachments").default('[]'), // JSON string
   workspaceId: integer("workspace_id").notNull(),
   relatedPageId: integer("related_page_id"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at").default(Date.now()),
+  updatedAt: integer("updated_at").default(Date.now()),
 });
 
 // Schema definitions
