@@ -1,12 +1,13 @@
-# Notion Clone - Full Stack Application
+# Notion Clone - Production-Grade Full Stack Application
 
 ## Overview
 
-This is a full-stack Notion clone built with React, TypeScript, Express, and PostgreSQL. The application provides a modern note-taking and page management interface with hierarchical page organization, block-based content editing, and real-time updates.
+This is a comprehensive, production-grade Notion clone built with React, TypeScript, Express, and PostgreSQL. The application provides an exact replica of Notion's functionality including advanced team workspaces, real-time collaboration with cursor tracking, multi-factor authentication, business analytics, sharing features, template galleries, trash management, and enterprise-level security controls.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Project Priority: Production-grade quality with perfect implementation of all advanced Notion features.
 
 ## System Architecture
 
@@ -27,10 +28,18 @@ Preferred communication style: Simple, everyday language.
 - **API Design**: RESTful APIs with proper error handling
 
 ### Database Schema
-The application uses three main tables:
-- **users**: User accounts with username, password, and profile info
-- **pages**: Hierarchical page structure with parent-child relationships
-- **blocks**: Content blocks within pages with flexible JSON content storage
+The application uses a comprehensive database schema with 11 tables:
+- **users**: User accounts with Replit authentication and profile info
+- **workspaces**: Team workspaces with business/personal types and settings
+- **workspace_members**: User memberships with role-based access control
+- **invitations**: Workspace invitation system with token-based acceptance
+- **templates**: Custom and global template system with categories
+- **pages**: Hierarchical page structure with workspace organization
+- **blocks**: Rich content blocks with flexible JSON content storage
+- **comments**: Page and block-level commenting system
+- **activities**: Comprehensive activity logging for audit trails
+- **notifications**: Real-time notification system for user engagement
+- **sessions**: PostgreSQL-backed session storage for authentication
 
 ## Key Components
 

@@ -1,11 +1,20 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { GripVertical, Plus } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { type Block, type InsertBlock, type BlockContent } from "@shared/schema";
-import { getBlockTypeFromSlashCommand, createDefaultContent } from "@/lib/blocks";
+import { 
+  Type, 
+  Heading1, 
+  Heading2, 
+  Heading3, 
+  List, 
+  CheckSquare, 
+  Code,
+  Plus,
+  GripVertical
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { insertBlockSchema, updateBlockSchema, type Block, type BlockContent } from "@shared/schema";
 
 interface BlockEditorProps {
   pageId: number;
@@ -19,270 +28,249 @@ interface BlockComponentProps {
   onCreateBelow: (type: string) => void;
 }
 
+const blockTypes = [
+  { type: "text", label: "Text", icon: Type },
+  { type: "heading1", label: "Heading 1", icon: Heading1 },
+  { type: "heading2", label: "Heading 2", icon: Heading2 },
+  { type: "heading3", label: "Heading 3", icon: Heading3 },
+  { type: "bullet-list", label: "Bullet List", icon: List },
+  { type: "todo", label: "Todo", icon: CheckSquare },
+  { type: "code", label: "Code", icon: Code },
+];
+
 function BlockComponent({ block, onUpdate, onDelete, onCreateBelow }: BlockComponentProps) {
-  const [content, setContent] = useState<BlockContent>(block.content || {});
-  const [isSlashMenuOpen, setIsSlashMenuOpen] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [content, setContent] = useState(block.content?.text || "");
+  const [isChecked, setIsChecked] = useState(block.content?.checked || false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [content]);
 
   const handleContentChange = (newContent: BlockContent) => {
-    setContent(newContent);
     onUpdate(newContent);
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onCreateBelow("text");
-    }
-    
-    if (e.key === "Backspace" && contentRef.current) {
-      const text = contentRef.current.textContent || "";
-      if (text === "" || text === "/") {
-        e.preventDefault();
-        onDelete();
-      }
+      onCreateBelow('text');
+    } else if (e.key === 'Backspace' && content === '' && !e.shiftKey) {
+      e.preventDefault();
+      onDelete();
     }
   };
 
-  const handleInput = () => {
-    if (contentRef.current) {
-      const text = contentRef.current.textContent || "";
-      
-      if (text.endsWith("/")) {
-        setIsSlashMenuOpen(true);
-      } else {
-        setIsSlashMenuOpen(false);
-      }
-      
-      if (block.type === "text" || block.type === "header") {
-        handleContentChange({ ...content, text });
-      }
-    }
-  };
-
-  const handleSlashCommand = (command: string) => {
-    const blockType = getBlockTypeFromSlashCommand(command);
-    if (blockType && contentRef.current) {
-      // Replace the "/" with empty content and change block type
-      contentRef.current.textContent = "";
-      setIsSlashMenuOpen(false);
-      onCreateBelow(blockType);
-    }
-  };
-
-  useEffect(() => {
-    const element = contentRef.current;
-    if (element) {
-      element.addEventListener("keydown", handleKeyDown);
-      return () => element.removeEventListener("keydown", handleKeyDown);
-    }
-  }, []);
-
-  const renderContent = () => {
+  const renderBlock = () => {
     switch (block.type) {
-      case "text":
+      case "heading1":
         return (
-          <div
-            ref={contentRef}
-            className="block-editor outline-none"
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handleInput}
-            data-placeholder="Type '/' for commands"
-            dangerouslySetInnerHTML={{ __html: content.text || "" }}
+          <textarea
+            ref={textareaRef}
+            className="w-full bg-transparent border-none outline-none resize-none text-3xl font-bold placeholder-muted-foreground"
+            placeholder="Heading 1"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              handleContentChange({ text: e.target.value });
+            }}
+            onKeyDown={handleKeyDown}
+            rows={1}
           />
         );
-
-      case "header":
-        const HeaderTag = content.level === 1 ? "h1" : content.level === 3 ? "h3" : "h2";
+        
+      case "heading2":
         return (
-          <HeaderTag
-            ref={contentRef}
-            className="block-editor outline-none notion-heading font-semibold"
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handleInput}
-            data-placeholder="Heading"
-            dangerouslySetInnerHTML={{ __html: content.text || "" }}
+          <textarea
+            ref={textareaRef}
+            className="w-full bg-transparent border-none outline-none resize-none text-2xl font-semibold placeholder-muted-foreground"
+            placeholder="Heading 2"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              handleContentChange({ text: e.target.value });
+            }}
+            onKeyDown={handleKeyDown}
+            rows={1}
           />
         );
-
-      case "list":
+        
+      case "heading3":
         return (
-          <ul className="space-y-1">
-            {(content.items || []).map((item, index) => (
-              <li key={index} className="flex items-start space-x-2">
-                <span className="notion-secondary mt-1.5">•</span>
-                <div
-                  className="block-editor outline-none flex-1"
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => {
-                    const newItems = [...(content.items || [])];
-                    newItems[index] = (e.target as HTMLElement).textContent || "";
-                    handleContentChange({ ...content, items: newItems });
-                  }}
-                  dangerouslySetInnerHTML={{ __html: item }}
-                />
-              </li>
-            ))}
-          </ul>
+          <textarea
+            ref={textareaRef}
+            className="w-full bg-transparent border-none outline-none resize-none text-xl font-medium placeholder-muted-foreground"
+            placeholder="Heading 3"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              handleContentChange({ text: e.target.value });
+            }}
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
         );
-
+        
+      case "bullet-list":
+        return (
+          <div className="flex items-start space-x-2">
+            <span className="mt-2 w-1 h-1 bg-foreground rounded-full flex-shrink-0"></span>
+            <textarea
+              ref={textareaRef}
+              className="flex-1 bg-transparent border-none outline-none resize-none placeholder-muted-foreground"
+              placeholder="List item"
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                handleContentChange({ text: e.target.value });
+              }}
+              onKeyDown={handleKeyDown}
+              rows={1}
+            />
+          </div>
+        );
+        
       case "todo":
         return (
-          <div className="flex items-center space-x-3">
-            <Checkbox
-              checked={content.checked || false}
-              onCheckedChange={(checked) => 
-                handleContentChange({ ...content, checked: !!checked })
-              }
+          <div className="flex items-start space-x-2">
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={(e) => {
+                setIsChecked(e.target.checked);
+                handleContentChange({ text: content, checked: e.target.checked });
+              }}
+              className="mt-1 rounded border-gray-300"
             />
-            <div
-              ref={contentRef}
-              className={`block-editor outline-none flex-1 ${
-                content.checked ? "line-through notion-secondary" : ""
+            <textarea
+              ref={textareaRef}
+              className={`flex-1 bg-transparent border-none outline-none resize-none placeholder-muted-foreground ${
+                isChecked ? 'line-through text-muted-foreground' : ''
               }`}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={handleInput}
-              data-placeholder="To-do"
-              dangerouslySetInnerHTML={{ __html: content.text || "" }}
+              placeholder="Todo item"
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                handleContentChange({ text: e.target.value, checked: isChecked });
+              }}
+              onKeyDown={handleKeyDown}
+              rows={1}
             />
           </div>
         );
-
+        
       case "code":
         return (
-          <div className="bg-gray-100 rounded p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs notion-secondary font-medium">
-                {content.language || "Plain Text"}
-              </span>
-              <Button variant="ghost" size="sm" className="text-xs notion-secondary h-6">
-                Copy
-              </Button>
-            </div>
-            <pre
-              ref={contentRef}
-              className="block-editor outline-none text-sm font-mono"
-              contentEditable
-              suppressContentEditableWarning
-              onInput={handleInput}
-              data-placeholder="Code"
-              dangerouslySetInnerHTML={{ __html: content.text || "" }}
+          <div className="bg-muted rounded-md p-3">
+            <textarea
+              ref={textareaRef}
+              className="w-full bg-transparent border-none outline-none resize-none font-mono text-sm placeholder-muted-foreground"
+              placeholder="Enter code..."
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                handleContentChange({ text: e.target.value });
+              }}
+              onKeyDown={handleKeyDown}
+              rows={3}
             />
           </div>
         );
-
+        
       default:
         return (
-          <div
-            ref={contentRef}
-            className="block-editor outline-none"
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handleInput}
-            data-placeholder="Type something..."
-            dangerouslySetInnerHTML={{ __html: content.text || "" }}
+          <textarea
+            ref={textareaRef}
+            className="w-full bg-transparent border-none outline-none resize-none placeholder-muted-foreground"
+            placeholder="Type something..."
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              handleContentChange({ text: e.target.value });
+            }}
+            onKeyDown={handleKeyDown}
+            rows={1}
           />
         );
     }
   };
 
   return (
-    <div className="group relative block-wrapper hover:bg-gray-50 -mx-2 px-2 py-1 rounded notion-transition">
-      <div className="absolute left-0 top-1 block-controls flex items-center">
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 mr-1">
-          <GripVertical className="h-3 w-3 notion-secondary" />
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-6 w-6 p-0"
-          onClick={() => onCreateBelow("text")}
-        >
-          <Plus className="h-3 w-3 notion-secondary" />
-        </Button>
+    <div className="group flex items-start space-x-2 py-1">
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <GripVertical className="h-4 w-4 text-muted-foreground mt-1 cursor-grab" />
       </div>
-      
-      {renderContent()}
-      
-      {isSlashMenuOpen && (
-        <div className="absolute z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-2 mt-1">
-          <div className="space-y-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-8 text-sm"
-              onClick={() => handleSlashCommand("h1")}
-            >
-              Heading 1
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-8 text-sm"
-              onClick={() => handleSlashCommand("h2")}
-            >
-              Heading 2
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-8 text-sm"
-              onClick={() => handleSlashCommand("list")}
-            >
-              Bullet List
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-8 text-sm"
-              onClick={() => handleSlashCommand("todo")}
-            >
-              To-do List
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start h-8 text-sm"
-              onClick={() => handleSlashCommand("code")}
-            >
-              Code Block
-            </Button>
-          </div>
-        </div>
-      )}
+      <div className="flex-1">
+        {renderBlock()}
+      </div>
     </div>
   );
 }
 
 export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
+  const [showBlockMenu, setShowBlockMenu] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const createBlockMutation = useMutation({
-    mutationFn: async (blockData: InsertBlock) => {
-      const response = await apiRequest("POST", `/api/pages/${pageId}/blocks`, blockData);
-      return response.json();
+    mutationFn: async (blockData: { type: string; pageId: number; order: number }) => {
+      return await apiRequest('/api/blocks', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...blockData,
+          content: { text: "" }
+        }),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pages", pageId, "blocks"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to create block",
+        variant: "destructive",
+      });
     },
   });
 
   const updateBlockMutation = useMutation({
     mutationFn: async ({ id, content }: { id: number; content: BlockContent }) => {
-      const response = await apiRequest("PATCH", `/api/blocks/${id}`, { content });
-      return response.json();
+      return await apiRequest(`/api/blocks/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update block",
+        variant: "destructive",
+      });
     },
   });
 
   const deleteBlockMutation = useMutation({
     mutationFn: async (blockId: number) => {
-      const response = await apiRequest("DELETE", `/api/blocks/${blockId}`);
-      return response.json();
+      return await apiRequest(`/api/blocks/${blockId}`, {
+        method: 'DELETE',
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pages", pageId, "blocks"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete block",
+        variant: "destructive",
+      });
     },
   });
 
@@ -290,59 +278,85 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
     updateBlockMutation.mutate({ id: blockId, content });
   };
 
+  const handleCreateBlock = (type: string, afterBlockId?: number) => {
+    const afterIndex = afterBlockId ? blocks.findIndex(b => b.id === afterBlockId) : -1;
+    const order = afterIndex >= 0 ? blocks[afterIndex].order + 1 : blocks.length;
+    
+    createBlockMutation.mutate({
+      type,
+      pageId,
+      order
+    });
+  };
+
   const handleDeleteBlock = (blockId: number) => {
     deleteBlockMutation.mutate(blockId);
   };
 
-  const handleCreateBlock = (afterPosition: number, type: string) => {
-    const content = createDefaultContent(type);
-    createBlockMutation.mutate({
-      pageId,
-      type,
-      content,
-      position: afterPosition + 1,
-    });
-  };
-
-  const handleCreateEmptyBlock = () => {
-    const nextPosition = blocks.length;
-    handleCreateBlock(nextPosition - 1, "text");
-  };
+  const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-1">
-      {blocks.map((block, index) => (
+    <div className="space-y-2">
+      {sortedBlocks.map((block) => (
         <BlockComponent
           key={block.id}
           block={block}
           onUpdate={(content) => handleUpdateBlock(block.id, content)}
           onDelete={() => handleDeleteBlock(block.id)}
-          onCreateBelow={(type) => handleCreateBlock(index, type)}
+          onCreateBelow={(type) => handleCreateBlock(type, block.id)}
         />
       ))}
-      
-      {/* Empty block for new content */}
-      <div className="group relative block-wrapper hover:bg-gray-50 -mx-2 px-2 py-2 rounded notion-transition">
-        <div className="absolute left-0 top-2 block-controls flex items-center">
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 mr-1">
-            <GripVertical className="h-3 w-3 notion-secondary" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-6 w-6 p-0"
-            onClick={handleCreateEmptyBlock}
-          >
-            <Plus className="h-3 w-3 notion-secondary" />
+
+      {/* Add Block Button */}
+      <div className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowBlockMenu(!showBlockMenu)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add a block
+        </Button>
+
+        {showBlockMenu && (
+          <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-lg z-10 min-w-48">
+            <div className="p-2 space-y-1">
+              {blockTypes.map((blockType) => (
+                <Button
+                  key={blockType.type}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    handleCreateBlock(blockType.type);
+                    setShowBlockMenu(false);
+                  }}
+                >
+                  <blockType.icon className="h-4 w-4 mr-2" />
+                  {blockType.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {blocks.length === 0 && (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <Type className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">Start writing</h3>
+          <p className="text-muted-foreground mb-4">
+            Add your first block to begin creating content
+          </p>
+          <Button onClick={() => handleCreateBlock('text')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add a text block
           </Button>
         </div>
-        <div
-          className="min-h-[24px] block-editor outline-none cursor-text notion-text"
-          contentEditable
-          onClick={handleCreateEmptyBlock}
-          data-placeholder="Type '/' for commands"
-        />
-      </div>
+      )}
     </div>
   );
 }
