@@ -62,14 +62,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/workspaces", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log("Creating workspace with user ID:", userId);
+      console.log("Request body:", req.body);
+      
       const workspaceData = insertWorkspaceSchema.parse({
         ...req.body,
         ownerId: userId
       });
+      console.log("Parsed workspace data:", workspaceData);
+      
       const workspace = await storage.createWorkspace(workspaceData);
+      console.log("Created workspace:", workspace);
       res.json(workspace);
     } catch (error) {
-      res.status(400).json({ error: "Invalid workspace data" });
+      console.error("Error creating workspace:", error);
+      res.status(400).json({ error: "Invalid workspace data", details: error.message });
     }
   });
 
