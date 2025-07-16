@@ -1,13 +1,15 @@
-# Notion Clone - Production-Grade Full Stack Application
+# MindTracker - Intelligent Team Collaboration Platform
 
 ## Overview
 
-This is a comprehensive, production-grade Notion clone built with React, TypeScript, Express, and PostgreSQL. The application provides an exact replica of Notion's functionality including advanced team workspaces, real-time collaboration with cursor tracking, multi-factor authentication, business analytics, sharing features, template galleries, trash management, and enterprise-level security controls.
+MindTracker is a comprehensive, production-grade team collaboration platform built with React, TypeScript, Express, and SQLite. The application provides WebSocket-only communication, real-time collaboration with cursor tracking, business page subdomain routing (app.oururl.com), clean black/white design, auto-reconnection after internet recovery, and enterprise-level security controls.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-Project Priority: Production-grade quality with perfect implementation of all advanced Notion features.
+Project Priority: Production-grade quality with WebSocket-only communication, subdomain business routing, clean black/white design, and auto-reconnection functionality.
+Application Name: MindTracker (no references to Notion)
+Admin Credentials: admin@mindtracker.com / admin123
 
 ## System Architecture
 
@@ -22,13 +24,13 @@ Project Priority: Production-grade quality with perfect implementation of all ad
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript with ESM modules
-- **Database**: PostgreSQL with Drizzle ORM
-- **Database Provider**: Neon Database (@neondatabase/serverless)
-- **Session Management**: PostgreSQL sessions with connect-pg-simple
-- **API Design**: RESTful APIs with proper error handling
+- **Database**: SQLite with Drizzle ORM (migrated from PostgreSQL)
+- **Database Provider**: better-sqlite3 for development
+- **Communication**: WebSocket-only API with auto-reconnection
+- **API Design**: WebSocket-based real-time communication with heartbeat
 
 ### Database Schema
-The application uses a comprehensive database schema with 11 tables:
+The application uses a comprehensive SQLite database schema with 11 tables:
 - **users**: User accounts with Replit authentication and profile info
 - **workspaces**: Team workspaces with business/personal types and settings
 - **workspace_members**: User memberships with role-based access control

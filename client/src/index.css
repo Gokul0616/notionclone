@@ -3,71 +3,73 @@
 @tailwind utilities;
 
 :root {
+  /* Clean black and white Notion-inspired design */
   --background: hsl(0, 0%, 100%);
-  --foreground: hsl(20, 14.3%, 4.1%);
-  --muted: hsl(60, 4.8%, 95.9%);
-  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --foreground: hsl(0, 0%, 0%);
+  --muted: hsl(0, 0%, 96%);
+  --muted-foreground: hsl(0, 0%, 45%);
   --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --popover-foreground: hsl(0, 0%, 0%);
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(20, 14.3%, 4.1%);
-  --border: hsl(20, 5.9%, 90%);
-  --input: hsl(20, 5.9%, 90%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(211, 100%, 99%);
-  --secondary: hsl(60, 4.8%, 95.9%);
-  --secondary-foreground: hsl(24, 9.8%, 10%);
-  --accent: hsl(60, 4.8%, 95.9%);
-  --accent-foreground: hsl(24, 9.8%, 10%);
-  --destructive: hsl(0, 84.2%, 60.2%);
-  --destructive-foreground: hsl(60, 9.1%, 97.8%);
-  --ring: hsl(20, 14.3%, 4.1%);
-  --radius: 0.5rem;
+  --card-foreground: hsl(0, 0%, 0%);
+  --border: hsl(0, 0%, 90%);
+  --input: hsl(0, 0%, 96%);
+  --primary: hsl(0, 0%, 0%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(0, 0%, 96%);
+  --secondary-foreground: hsl(0, 0%, 0%);
+  --accent: hsl(0, 0%, 96%);
+  --accent-foreground: hsl(0, 0%, 0%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --ring: hsl(0, 0%, 0%);
+  --radius: 0.375rem;
 
-  /* Notion-specific colors */
+  /* Notion-specific colors - Clean black/white */
   --notion-bg: hsl(0, 0%, 100%);
-  --notion-sidebar: hsl(45, 25%, 97%);
-  --notion-text: hsl(0, 0%, 18%);
-  --notion-heading: hsl(20, 14%, 23%);
-  --notion-secondary: hsl(0, 0%, 44%);
-  --notion-border: hsl(40, 10%, 91%);
-  --notion-border-dark: hsl(30, 9%, 83%);
-  --notion-accent: hsl(207, 90%, 54%);
-  --notion-hover: hsl(44, 31%, 94%);
+  --notion-sidebar: hsl(0, 0%, 98%);
+  --notion-text: hsl(0, 0%, 0%);
+  --notion-heading: hsl(0, 0%, 0%);
+  --notion-secondary: hsl(0, 0%, 55%);
+  --notion-border: hsl(0, 0%, 90%);
+  --notion-border-dark: hsl(0, 0%, 80%);
+  --notion-accent: hsl(0, 0%, 0%);
+  --notion-hover: hsl(0, 0%, 96%);
 }
 
 .dark {
-  --background: hsl(240, 10%, 3.9%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(240, 3.7%, 15.9%);
-  --muted-foreground: hsl(240, 5%, 64.9%);
-  --popover: hsl(240, 10%, 3.9%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(240, 10%, 3.9%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --border: hsl(240, 3.7%, 15.9%);
-  --input: hsl(240, 3.7%, 15.9%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(211, 100%, 99%);
-  --secondary: hsl(240, 3.7%, 15.9%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(240, 3.7%, 15.9%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 62.8%, 30.6%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(240, 4.9%, 83.9%);
-  --radius: 0.5rem;
+  /* Clean black and white dark mode */
+  --background: hsl(0, 0%, 0%);
+  --foreground: hsl(0, 0%, 100%);
+  --muted: hsl(0, 0%, 4%);
+  --muted-foreground: hsl(0, 0%, 55%);
+  --popover: hsl(0, 0%, 0%);
+  --popover-foreground: hsl(0, 0%, 100%);
+  --card: hsl(0, 0%, 0%);
+  --card-foreground: hsl(0, 0%, 100%);
+  --border: hsl(0, 0%, 10%);
+  --input: hsl(0, 0%, 4%);
+  --primary: hsl(0, 0%, 100%);
+  --primary-foreground: hsl(0, 0%, 0%);
+  --secondary: hsl(0, 0%, 4%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(0, 0%, 4%);
+  --accent-foreground: hsl(0, 0%, 100%);
+  --destructive: hsl(0, 62%, 30%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --ring: hsl(0, 0%, 100%);
+  --radius: 0.375rem;
 
-  /* Notion-specific dark colors */
-  --notion-bg: hsl(240, 10%, 3.9%);
-  --notion-sidebar: hsl(240, 6%, 6%);
-  --notion-text: hsl(0, 0%, 90%);
-  --notion-heading: hsl(0, 0%, 98%);
-  --notion-secondary: hsl(240, 5%, 64.9%);
-  --notion-border: hsl(240, 3.7%, 15.9%);
-  --notion-border-dark: hsl(240, 5%, 20%);
-  --notion-accent: hsl(207, 90%, 54%);
-  --notion-hover: hsl(240, 3.7%, 15.9%);
+  /* Notion-specific dark colors - Clean black/white */
+  --notion-bg: hsl(0, 0%, 0%);
+  --notion-sidebar: hsl(0, 0%, 2%);
+  --notion-text: hsl(0, 0%, 100%);
+  --notion-heading: hsl(0, 0%, 100%);
+  --notion-secondary: hsl(0, 0%, 45%);
+  --notion-border: hsl(0, 0%, 10%);
+  --notion-border-dark: hsl(0, 0%, 20%);
+  --notion-accent: hsl(0, 0%, 100%);
+  --notion-hover: hsl(0, 0%, 4%);
 }
 
 @layer base {

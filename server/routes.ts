@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketAPIServer } from "./websocket-api";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertPageSchema, insertBlockSchema, updatePageSchema, updateBlockSchema,
@@ -887,6 +888,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   }
+
+  // Initialize WebSocket API server for full WebSocket-only communication
+  const wsApiServer = new WebSocketAPIServer(httpServer);
 
   return httpServer;
 }
