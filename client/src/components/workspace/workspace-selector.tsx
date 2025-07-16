@@ -76,13 +76,18 @@ export default function WorkspaceSelector({
 
   const createWorkspaceMutation = useMutation({
     mutationFn: async (workspaceData: typeof newWorkspace) => {
-      console.log("Creating workspace with data:", workspaceData);
-      return await apiRequest(`/api/workspaces`, {
-        method: "POST",
-        body: JSON.stringify(workspaceData),
-      });
+      console.log("=== CLIENT: Creating workspace ===");
+      console.log("Workspace data:", JSON.stringify(workspaceData, null, 2));
+      console.log("Current user:", user);
+      
+      const response = await apiRequest("POST", "/api/workspaces", workspaceData);
+      const workspace = await response.json();
+      
+      console.log("Workspace creation response:", workspace);
+      return workspace;
     },
     onSuccess: (workspace) => {
+      console.log("Workspace created successfully:", workspace);
       queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
       setShowCreateDialog(false);
       setNewWorkspace({
@@ -97,17 +102,41 @@ export default function WorkspaceSelector({
         description: "Workspace created successfully",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("=== CLIENT: Workspace creation error ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      console.error("Error details:", error.details);
+      
+      let errorMessage = "Failed to create workspace";
+      
+      if (error.details) {
+        if (Array.isArray(error.details)) {
+          // Zod validation errors
+          errorMessage = error.details.map((e: any) => e.message).join(", ");
+        } else {
+          errorMessage = error.details;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create workspace",
+        description: errorMessage,
         variant: "destructive",
       });
     },
   });
 
   const handleCreateWorkspace = () => {
+    console.log("=== CLIENT: Handle create workspace ===");
+    console.log("Current user:", user);
+    console.log("Owner ID:", ownerId);
+    console.log("New workspace data:", newWorkspace);
+    
     if (!ownerId) {
+      console.error("No owner ID available");
       toast({
         title: "Error",
         description: "User ID is not available. Please log in.",
@@ -116,14 +145,39 @@ export default function WorkspaceSelector({
       return;
     }
 
-    try {
-      const validatedData = insertWorkspaceSchema.parse(newWorkspace);
-      createWorkspaceMutation.mutate(validatedData);
-    } catch (error) {
-      console.error(error);
+    if (!newWorkspace.name || newWorkspace.name.trim() === "") {
+      console.error("Workspace name is required");
       toast({
         title: "Error",
-        description: "Please fill in all required fields",
+        description: "Workspace name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const workspaceData = {
+        ...newWorkspace,
+        ownerId: ownerId,
+        name: newWorkspace.name.trim(),
+      };
+      
+      console.log("Validating workspace data:", workspaceData);
+      const validatedData = insertWorkspaceSchema.parse(workspaceData);
+      console.log("Validation successful, creating workspace");
+      
+      createWorkspaceMutation.mutate(validatedData);
+    } catch (error: any) {
+      console.error("Validation error:", error);
+      
+      let errorMessage = "Please fill in all required fields";
+      if (error.errors) {
+        errorMessage = error.errors.map((e: any) => e.message).join(", ");
+      }
+      
+      toast({
+        title: "Validation Error",
+        description: errorMessage,
         variant: "destructive",
       });
     }

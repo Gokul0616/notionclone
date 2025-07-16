@@ -163,6 +163,8 @@ export const insertWorkspaceSchema = createInsertSchema(workspaces).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  description: z.string().optional().nullable(),
 });
 
 export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).omit({

@@ -36,6 +36,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
+  // Health check endpoint
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Test database connection
+      await storage.getUser('test-user-id');
+      res.json({ status: 'ok', database: 'connected' });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(500).json({ status: 'error', database: 'disconnected', error: error.message });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -62,21 +74,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/workspaces", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      console.log("Creating workspace with user ID:", userId);
-      console.log("Request body:", req.body);
+      console.log("=== WORKSPACE CREATION DEBUG ===");
+      console.log("User ID:", userId);
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
       
-      const workspaceData = insertWorkspaceSchema.parse({
-        ...req.body,
-        ownerId: userId
-      });
-      console.log("Parsed workspace data:", workspaceData);
+      // Validate user ID exists
+      if (!userId) {
+        console.error("No user ID found in request");
+        return res.status(401).json({ error: "User not authenticated" });
+      }
       
-      const workspace = await storage.createWorkspace(workspaceData);
-      console.log("Created workspace:", workspace);
+      // Check if user exists in database
+      const user = await storage.getUser(userId);
+      if (!user) {
+        console.error("User not found in database:", userId);
+        return res.status(404).json({ error: "User not found" });
+      }
+      console.log("User found:", user);
+      
+      // Validate required fields
+      if (!req.body.name || req.body.name.trim() === "") {
+        console.error("Missing or empty workspace name");
+        return res.status(400).json({ error: "Workspace name is required" });
+      }
+      
+      const workspaceData = {
+        name: req.body.name.trim(),
+        description: req.body.description || null,
+        type: req.body.type || "personal",
+        ownerId: userId,
+        icon: req.body.icon || "🏢",
+        plan: "free",
+        settings: null
+      };
+      
+      console.log("Prepared workspace data:", JSON.stringify(workspaceData, null, 2));
+      
+      // Validate with schema
+      const validatedData = insertWorkspaceSchema.parse(workspaceData);
+      console.log("Schema validation passed:", JSON.stringify(validatedData, null, 2));
+      
+      // Create workspace
+      const workspace = await storage.createWorkspace(validatedData);
+      console.log("Successfully created workspace:", JSON.stringify(workspace, null, 2));
+      
       res.json(workspace);
     } catch (error) {
-      console.error("Error creating workspace:", error);
-      res.status(400).json({ error: "Invalid workspace data", details: error.message });
+      console.error("=== WORKSPACE CREATION ERROR ===");
+      console.error("Error type:", error.constructor.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      
+      if (error.name === 'ZodError') {
+        console.error("Validation errors:", error.errors);
+        return res.status(400).json({ 
+          error: "Invalid workspace data", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to create workspace", 
+        details: error.message 
+      });
     }
   });
 

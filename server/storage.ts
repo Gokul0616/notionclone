@@ -127,17 +127,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
-    const [newWorkspace] = await db.insert(workspaces).values(workspace).returning();
+    console.log("=== STORAGE: Creating workspace ===");
+    console.log("Workspace data:", JSON.stringify(workspace, null, 2));
     
-    // Add owner as workspace member
-    await db.insert(workspaceMembers).values({
-      workspaceId: newWorkspace.id,
-      userId: workspace.ownerId,
-      role: 'owner',
-      permissions: null,
-    });
-    
-    return newWorkspace;
+    try {
+      // Insert workspace
+      const [newWorkspace] = await db.insert(workspaces).values(workspace).returning();
+      console.log("Workspace inserted successfully:", JSON.stringify(newWorkspace, null, 2));
+      
+      // Add owner as workspace member
+      const memberData = {
+        workspaceId: newWorkspace.id,
+        userId: workspace.ownerId,
+        role: 'owner' as const,
+        permissions: null,
+      };
+      console.log("Adding workspace member:", JSON.stringify(memberData, null, 2));
+      
+      await db.insert(workspaceMembers).values(memberData);
+      console.log("Workspace member added successfully");
+      
+      return newWorkspace;
+    } catch (error) {
+      console.error("=== STORAGE ERROR ===");
+      console.error("Error inserting workspace:", error);
+      console.error("Error details:", error.message);
+      if (error.code) {
+        console.error("Database error code:", error.code);
+      }
+      throw error;
+    }
   }
 
   async updateWorkspace(id: number, updates: UpdateWorkspace): Promise<Workspace | undefined> {
