@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useContext } from "react"; // Add useContext if using AuthContext
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,38 +11,58 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Plus, 
-  Building2, 
-  Users, 
-  Settings, 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Plus,
+  Building2,
+  Users,
+  Settings,
   Crown,
   Star,
-  ChevronDown 
+  ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertWorkspaceSchema } from "@shared/schema";
+
+// Assuming you have an AuthContext or similar to get the current user's ID
+import { AuthContext } from "@/context/AuthContext"; // Adjust based on your setup
 
 interface WorkspaceSelectorProps {
   currentWorkspaceId?: number;
   onWorkspaceChange: (workspaceId: number) => void;
 }
 
-export default function WorkspaceSelector({ 
-  currentWorkspaceId, 
-  onWorkspaceChange 
+export default function WorkspaceSelector({
+  currentWorkspaceId,
+  onWorkspaceChange,
 }: WorkspaceSelectorProps) {
+  // Get the current user's ID from context (or another source)
+  const { user } = useContext(AuthContext); // Adjust based on your auth setup
+  const ownerId = user?.id; // Ensure this is a string as per the schema
+
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newWorkspace, setNewWorkspace] = useState({
     name: "",
     description: "",
-    type: "personal"
+    type: "personal",
+    ownerId: ownerId || "", // Initialize with ownerId
   });
-  
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -57,6 +77,7 @@ export default function WorkspaceSelector({
 
   const createWorkspaceMutation = useMutation({
     mutationFn: async (workspaceData: typeof newWorkspace) => {
+      console.log("Creating workspace with data:", workspaceData);
       return await apiRequest(`/api/workspaces`, {
         method: "POST",
         body: JSON.stringify(workspaceData),
@@ -65,7 +86,12 @@ export default function WorkspaceSelector({
     onSuccess: (workspace) => {
       queryClient.invalidateQueries({ queryKey: ["/api/workspaces"] });
       setShowCreateDialog(false);
-      setNewWorkspace({ name: "", description: "", type: "personal" });
+      setNewWorkspace({
+        name: "",
+        description: "",
+        type: "personal",
+        ownerId: ownerId || "",
+      });
       onWorkspaceChange(workspace.id);
       toast({
         title: "Success",
@@ -74,7 +100,7 @@ export default function WorkspaceSelector({
     },
     onError: () => {
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Failed to create workspace",
         variant: "destructive",
       });
@@ -82,10 +108,20 @@ export default function WorkspaceSelector({
   });
 
   const handleCreateWorkspace = () => {
+    if (!ownerId) {
+      toast({
+        title: "Error",
+        description: "User ID is not available. Please log in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const validatedData = insertWorkspaceSchema.parse(newWorkspace);
       createWorkspaceMutation.mutate(validatedData);
     } catch (error) {
+      console.error(error);
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -112,7 +148,7 @@ export default function WorkspaceSelector({
               <span className="truncate">
                 {currentWorkspace?.name || "Select Workspace"}
               </span>
-              {currentWorkspace?.type === 'business' && (
+              {currentWorkspace?.type === "business" && (
                 <Crown className="h-3 w-3 text-yellow-500" />
               )}
             </div>
@@ -125,7 +161,7 @@ export default function WorkspaceSelector({
                 <Building2 className="h-4 w-4" />
                 <span className="flex-1 truncate">{workspace.name}</span>
                 <div className="flex items-center space-x-1">
-                  {workspace.type === 'business' && (
+                  {workspace.type === "business" && (
                     <Crown className="h-3 w-3 text-yellow-500" />
                   )}
                   <Badge variant="secondary" className="text-xs">
@@ -152,7 +188,7 @@ export default function WorkspaceSelector({
               Set up a new workspace for your team or personal projects
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Workspace Name</Label>
@@ -160,30 +196,39 @@ export default function WorkspaceSelector({
                 id="name"
                 placeholder="My Awesome Workspace"
                 value={newWorkspace.name}
-                onChange={(e) => setNewWorkspace(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setNewWorkspace((prev) => ({ ...prev, name: e.target.value }))
+                }
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="description">Description (Optional)</Label>
               <Input
                 id="description"
                 placeholder="What's this workspace for?"
                 value={newWorkspace.description}
-                onChange={(e) => setNewWorkspace(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(e) =>
+                  setNewWorkspace((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
               />
             </div>
-            
+
             <div className="space-y-3">
               <Label>Workspace Type</Label>
               <div className="grid grid-cols-2 gap-3">
-                <Card 
+                <Card
                   className={`cursor-pointer transition-colors ${
-                    newWorkspace.type === 'personal' 
-                      ? 'ring-2 ring-blue-500 bg-blue-50' 
-                      : 'hover:bg-muted'
+                    newWorkspace.type === "personal"
+                      ? "ring-2 ring-blue-500 bg-blue-50"
+                      : "hover:bg-muted"
                   }`}
-                  onClick={() => setNewWorkspace(prev => ({ ...prev, type: 'personal' }))}
+                  onClick={() =>
+                    setNewWorkspace((prev) => ({ ...prev, type: "personal" }))
+                  }
                 >
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center space-x-2">
@@ -195,14 +240,16 @@ export default function WorkspaceSelector({
                     </CardDescription>
                   </CardHeader>
                 </Card>
-                
-                <Card 
+
+                <Card
                   className={`cursor-pointer transition-colors ${
-                    newWorkspace.type === 'business' 
-                      ? 'ring-2 ring-blue-500 bg-blue-50' 
-                      : 'hover:bg-muted'
+                    newWorkspace.type === "business"
+                      ? "ring-2 ring-blue-500 bg-blue-50"
+                      : "hover:bg-muted"
                   }`}
-                  onClick={() => setNewWorkspace(prev => ({ ...prev, type: 'business' }))}
+                  onClick={() =>
+                    setNewWorkspace((prev) => ({ ...prev, type: "business" }))
+                  }
                 >
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center space-x-2">
@@ -216,25 +263,31 @@ export default function WorkspaceSelector({
                 </Card>
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowCreateDialog(false)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateWorkspace}
-                disabled={createWorkspaceMutation.isPending || !newWorkspace.name}
+                disabled={
+                  createWorkspaceMutation.isPending ||
+                  !newWorkspace.name ||
+                  !newWorkspace.ownerId // Disable if ownerId is missing
+                }
               >
-                {createWorkspaceMutation.isPending ? "Creating..." : "Create Workspace"}
+                {createWorkspaceMutation.isPending
+                  ? "Creating..."
+                  : "Create Workspace"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* Workspace Settings */}
       {currentWorkspaceId && (
         <Button variant="ghost" size="sm">
