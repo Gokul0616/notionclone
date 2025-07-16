@@ -50,10 +50,8 @@ export default function Sidebar({ currentPageId, onPageSelect, onOpenCommandPale
 
   const createPageMutation = useMutation({
     mutationFn: async (pageData: { title: string; parentId?: number; workspaceId: number }) => {
-      return await apiRequest('/api/pages', {
-        method: 'POST',
-        body: JSON.stringify(pageData),
-      });
+      const response = await apiRequest('POST', '/api/pages', pageData);
+      return await response.json();
     },
     onSuccess: (page) => {
       queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/pages`] });

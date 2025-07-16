@@ -59,13 +59,11 @@ export default function ShareDialog({ pageId, workspaceId, trigger }: ShareDialo
 
   const inviteMemberMutation = useMutation({
     mutationFn: async (inviteData: { email: string; role: string }) => {
-      return await apiRequest(`/api/workspaces/${workspaceId}/invitations`, {
-        method: "POST",
-        body: JSON.stringify({
-          email: inviteData.email,
-          role: inviteData.role,
-        }),
+      const response = await apiRequest("POST", `/api/workspaces/${workspaceId}/invitations`, {
+        email: inviteData.email,
+        role: inviteData.role,
       });
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/invitations`] });

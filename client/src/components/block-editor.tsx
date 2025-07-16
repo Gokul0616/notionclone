@@ -217,13 +217,11 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
 
   const createBlockMutation = useMutation({
     mutationFn: async (blockData: { type: string; pageId: number; order: number }) => {
-      return await apiRequest('/api/blocks', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...blockData,
-          content: { text: "" }
-        }),
+      const response = await apiRequest('POST', '/api/blocks', {
+        ...blockData,
+        content: { text: "" }
       });
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });
@@ -239,10 +237,8 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
 
   const updateBlockMutation = useMutation({
     mutationFn: async ({ id, content }: { id: number; content: BlockContent }) => {
-      return await apiRequest(`/api/blocks/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ content }),
-      });
+      const response = await apiRequest('PATCH', `/api/blocks/${id}`, { content });
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });
@@ -258,9 +254,8 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
 
   const deleteBlockMutation = useMutation({
     mutationFn: async (blockId: number) => {
-      return await apiRequest(`/api/blocks/${blockId}`, {
-        method: 'DELETE',
-      });
+      const response = await apiRequest('DELETE', `/api/blocks/${blockId}`);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pages/${pageId}/blocks`] });

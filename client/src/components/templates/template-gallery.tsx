@@ -117,14 +117,12 @@ export default function TemplateGallery({ workspaceId, onSelectTemplate }: Templ
   const createFromTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
       // In a real implementation, this would create a page from the template
-      return await apiRequest('/api/pages', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: `New page from template`,
-          workspaceId,
-          content: { blocks: [] }
-        })
+      const response = await apiRequest('POST', '/api/pages', {
+        title: `New page from template`,
+        workspaceId,
+        content: { blocks: [] }
       });
+      return await response.json();
     },
     onSuccess: (page) => {
       toast({

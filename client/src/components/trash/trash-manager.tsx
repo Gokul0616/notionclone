@@ -32,9 +32,8 @@ export default function TrashManager({ workspaceId }: TrashManagerProps) {
 
   const restorePageMutation = useMutation({
     mutationFn: async (pageId: number) => {
-      return await apiRequest(`/api/pages/${pageId}/restore`, {
-        method: "POST",
-      });
+      const response = await apiRequest("POST", `/api/pages/${pageId}/restore`);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/pages`] });
@@ -55,9 +54,8 @@ export default function TrashManager({ workspaceId }: TrashManagerProps) {
 
   const permanentDeleteMutation = useMutation({
     mutationFn: async (pageId: number) => {
-      return await apiRequest(`/api/pages/${pageId}/permanent-delete`, {
-        method: "DELETE",
-      });
+      const response = await apiRequest("DELETE", `/api/pages/${pageId}/permanent-delete`);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/pages/deleted`] });
@@ -77,9 +75,8 @@ export default function TrashManager({ workspaceId }: TrashManagerProps) {
 
   const emptyTrashMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest(`/api/workspaces/${workspaceId}/trash/empty`, {
-        method: "POST",
-      });
+      const response = await apiRequest("POST", `/api/workspaces/${workspaceId}/trash/empty`);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/pages/deleted`] });
