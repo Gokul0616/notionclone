@@ -5,10 +5,12 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertPageSchema, insertBlockSchema, updatePageSchema, updateBlockSchema,
   insertWorkspaceSchema, insertInvitationSchema, insertTemplateSchema,
-  type Page, type Block, type Workspace 
+  insertUserSchema, type Page, type Block, type Workspace, type User
 } from "@shared/schema";
 import { storage } from "./storage";
 import { nanoid } from "nanoid";
+import bcrypt from "bcrypt";
+import { z } from "zod";
 
 // Real-time collaboration state
 interface CursorPosition {
@@ -58,6 +60,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
+  });
+
+  // Credential-based authentication routes
+  const credentialLoginSchema = z.object({
+    username: z.string().min(1, "Username is required"),
+    password: z.string().min(1, "Password is required")
+  });
+
+  const credentialRegisterSchema = z.object({
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    username: z.string().min(1, "Username is required"),
+    email: z.string().email("Valid email is required"),
+    password: z.string().min(8, "Password must be at least 8 characters")
+  });
+
+  app.post('/api/login', async (req, res) => {
+    try {
+      const { username, password } = credentialLoginSchema.parse(req.body);
+      
+      // Find user by username or email
+      const user = await storage.getUserByUsernameOrEmail(username);
+      if (!user || !user.password) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Set up session
+      req.session.user = {
+        claims: {
+          sub: user.id,
+          email: user.email,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          profile_image_url: user.profileImageUrl
+        }
+      };
+
+      // Return user data (without password)
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Login error:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input data" });
+      }
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post('/api/register', async (req, res) => {
+    try {
+      const { name, username, email, password } = credentialRegisterSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByUsernameOrEmail(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username or email already exists" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      // Create user
+      const [firstName, ...lastNameParts] = name.split(' ');
+      const lastName = lastNameParts.join(' ');
+      
+      const newUser = await storage.upsertUser({
+        id: nanoid(),
+        email,
+        firstName,
+        lastName: lastName || '',
+        username,
+        password: hashedPassword,
+        profileImageUrl: null,
+        preferences: null,
+        timezone: 'UTC',
+        theme: 'system',
+        language: 'en',
+        notifications: {
+          email: true,
+          desktop: true,
+          mentions: true,
+          comments: true
+        },
+        privacy: {
+          profileVisible: true,
+          activityVisible: true
+        },
+        gmailRefreshToken: null,
+        gmailAccessToken: null,
+        gmailTokenExpiry: null
+      });
+
+      // Set up session
+      req.session.user = {
+        claims: {
+          sub: newUser.id,
+          email: newUser.email,
+          first_name: newUser.firstName,
+          last_name: newUser.lastName,
+          profile_image_url: newUser.profileImageUrl
+        }
+      };
+
+      // Create default workspace
+      try {
+        const defaultWorkspace = await storage.createWorkspace({
+          name: `${firstName}'s Workspace`,
+          description: 'Your personal workspace',
+          type: 'personal',
+          ownerId: newUser.id,
+          icon: '🏠',
+          plan: 'free',
+          settings: null
+        });
+
+        // Add user as owner of the workspace
+        await storage.addWorkspaceMember({
+          workspaceId: defaultWorkspace.id,
+          userId: newUser.id,
+          role: 'owner',
+          permissions: null
+        });
+      } catch (workspaceError) {
+        console.error("Failed to create default workspace:", workspaceError);
+        // Continue without workspace - user can create one later
+      }
+
+      // Return user data (without password)
+      const { password: _, ...userWithoutPassword } = newUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Registration error:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input data" });
+      }
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post('/api/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
   });
 
   // Workspace routes
@@ -309,9 +464,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         workspaceId: pageData.workspaceId,
         userId,
         action: 'created',
-        targetType: 'page',
-        targetId: page.id,
-        details: { title: page.title }
+        resourceType: 'page',
+        resourceId: page.id.toString(),
+        metadata: { title: page.title }
       });
       
       res.json(page);
@@ -388,9 +543,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         workspaceId: page.workspaceId,
         userId,
         action: 'deleted',
-        targetType: 'page',
-        targetId: pageId,
-        details: { title: page.title }
+        resourceType: 'page',
+        resourceId: pageId.toString(),
+        metadata: { title: page.title }
       });
       
       res.json({ success: true });

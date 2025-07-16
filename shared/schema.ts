@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   username: varchar("username").unique(),
+  password: varchar("password"), // for credential-based auth
   preferences: jsonb("preferences"), // user settings, theme, etc.
   timezone: varchar("timezone").default("UTC"),
   theme: varchar("theme").default("system"),

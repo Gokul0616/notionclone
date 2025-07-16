@@ -27,6 +27,7 @@ import { cache } from "./cache";
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByUsernameOrEmail(usernameOrEmail: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   // Workspace operations
@@ -111,6 +112,16 @@ export class DatabaseStorage implements IStorage {
       cache.setUser(id, user);
     }
     return user || undefined;
+  }
+
+  async getUserByUsernameOrEmail(usernameOrEmail: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(
+      or(
+        eq(users.username, usernameOrEmail),
+        eq(users.email, usernameOrEmail)
+      )
+    );
+    return user;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
