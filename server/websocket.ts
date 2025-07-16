@@ -111,6 +111,50 @@ class CollaborationServer {
         await this.handleBlockEdit(ws, message);
         break;
 
+      case 'create_page':
+        await this.handleCreatePage(ws, message);
+        break;
+
+      case 'update_page':
+        await this.handleUpdatePage(ws, message);
+        break;
+
+      case 'delete_page':
+        await this.handleDeletePage(ws, message);
+        break;
+
+      case 'create_block':
+        await this.handleCreateBlock(ws, message);
+        break;
+
+      case 'update_block':
+        await this.handleUpdateBlock(ws, message);
+        break;
+
+      case 'delete_block':
+        await this.handleDeleteBlock(ws, message);
+        break;
+
+      case 'reorder_blocks':
+        await this.handleReorderBlocks(ws, message);
+        break;
+
+      case 'toggle_favorite':
+        await this.handleToggleFavorite(ws, message);
+        break;
+
+      case 'archive_page':
+        await this.handleArchivePage(ws, message);
+        break;
+
+      case 'restore_page':
+        await this.handleRestorePage(ws, message);
+        break;
+
+      case 'permanent_delete':
+        await this.handlePermanentDelete(ws, message);
+        break;
+
       default:
         console.warn('Unknown message type:', type);
     }
@@ -350,6 +394,301 @@ class CollaborationServer {
         if (client && client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify(message));
         }
+      }
+    });
+  }
+
+  // WebSocket CRUD handlers
+  private async handleCreatePage(ws: WebSocketClient, message: any) {
+    const { title, parentId, workspaceId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      const newPage = await storage.createPage({
+        title,
+        parentId: parentId || null,
+        workspaceId,
+        createdBy: ws.userId!,
+        lastEditedBy: ws.userId!
+      });
+
+      // Broadcast to all workspace members
+      this.broadcastToWorkspace(workspaceId, {
+        type: 'page_created',
+        page: newPage,
+        timestamp: Date.now()
+      });
+
+      ws.send(JSON.stringify({
+        type: 'page_created_success',
+        page: newPage
+      }));
+
+    } catch (error) {
+      console.error('Error creating page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to create page'
+      }));
+    }
+  }
+
+  private async handleUpdatePage(ws: WebSocketClient, message: any) {
+    const { pageId, updates } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      const updatedPage = await storage.updatePage(pageId, {
+        ...updates,
+        lastEditedBy: ws.userId!
+      });
+
+      if (updatedPage) {
+        // Broadcast to all users viewing this page
+        this.broadcastToPage(pageId, {
+          type: 'page_updated',
+          page: updatedPage,
+          timestamp: Date.now()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error updating page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to update page'
+      }));
+    }
+  }
+
+  private async handleDeletePage(ws: WebSocketClient, message: any) {
+    const { pageId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      await storage.deletePage(pageId);
+
+      // Broadcast to all workspace members
+      this.broadcastToWorkspace(message.workspaceId, {
+        type: 'page_deleted',
+        pageId,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to delete page'
+      }));
+    }
+  }
+
+  private async handleCreateBlock(ws: WebSocketClient, message: any) {
+    const { pageId, blockType, content, position } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      const newBlock = await storage.createBlock({
+        pageId,
+        type: blockType,
+        content,
+        position,
+        createdBy: ws.userId!,
+        lastEditedBy: ws.userId!
+      });
+
+      // Broadcast to all users viewing this page
+      this.broadcastToPage(pageId, {
+        type: 'block_created',
+        block: newBlock,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error creating block:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to create block'
+      }));
+    }
+  }
+
+  private async handleUpdateBlock(ws: WebSocketClient, message: any) {
+    const { blockId, content } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      const updatedBlock = await storage.updateBlock(blockId, {
+        content,
+        lastEditedBy: ws.userId!
+      });
+
+      if (updatedBlock) {
+        // Broadcast to all users viewing this page
+        this.broadcastToPage(updatedBlock.pageId, {
+          type: 'block_updated',
+          block: updatedBlock,
+          timestamp: Date.now()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error updating block:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to update block'
+      }));
+    }
+  }
+
+  private async handleDeleteBlock(ws: WebSocketClient, message: any) {
+    const { blockId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      const block = await storage.getBlockById(blockId);
+      
+      if (block) {
+        await storage.deleteBlock(blockId);
+
+        // Broadcast to all users viewing this page
+        this.broadcastToPage(block.pageId, {
+          type: 'block_deleted',
+          blockId,
+          timestamp: Date.now()
+        });
+      }
+
+    } catch (error) {
+      console.error('Error deleting block:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to delete block'
+      }));
+    }
+  }
+
+  private async handleReorderBlocks(ws: WebSocketClient, message: any) {
+    const { pageId, blockIds } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      await storage.reorderBlocks(pageId, blockIds);
+
+      // Broadcast to all users viewing this page
+      this.broadcastToPage(pageId, {
+        type: 'blocks_reordered',
+        pageId,
+        blockIds,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error reordering blocks:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to reorder blocks'
+      }));
+    }
+  }
+
+  private async handleToggleFavorite(ws: WebSocketClient, message: any) {
+    const { pageId } = message;
+    
+    try {
+      // Implementation depends on your favorite system
+      // For now, just broadcast the toggle
+      this.broadcastToWorkspace(message.workspaceId, {
+        type: 'page_favorite_toggled',
+        pageId,
+        userId: ws.userId!,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to toggle favorite'
+      }));
+    }
+  }
+
+  private async handleArchivePage(ws: WebSocketClient, message: any) {
+    const { pageId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      await storage.archivePage(pageId);
+
+      // Broadcast to all workspace members
+      this.broadcastToWorkspace(message.workspaceId, {
+        type: 'page_archived',
+        pageId,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error archiving page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to archive page'
+      }));
+    }
+  }
+
+  private async handleRestorePage(ws: WebSocketClient, message: any) {
+    const { pageId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      await storage.restorePage(pageId);
+
+      // Broadcast to all workspace members
+      this.broadcastToWorkspace(message.workspaceId, {
+        type: 'page_restored',
+        pageId,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error restoring page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to restore page'
+      }));
+    }
+  }
+
+  private async handlePermanentDelete(ws: WebSocketClient, message: any) {
+    const { pageId } = message;
+    
+    try {
+      const { storage } = await import('./storage');
+      await storage.deletePage(pageId);
+
+      // Broadcast to all workspace members
+      this.broadcastToWorkspace(message.workspaceId, {
+        type: 'page_permanently_deleted',
+        pageId,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error permanently deleting page:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to permanently delete page'
+      }));
+    }
+  }
+
+  private broadcastToWorkspace(workspaceId: number, message: any) {
+    // Find all clients in this workspace
+    this.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(message));
       }
     });
   }

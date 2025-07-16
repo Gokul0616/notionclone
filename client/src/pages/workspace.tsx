@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -11,6 +11,9 @@ import CursorOverlay from "@/components/collaboration/cursor-overlay";
 import Sidebar from "@/components/sidebar";
 import PageEditor from "@/components/page-editor";
 import CommandPalette from "@/components/command-palette";
+import FavoritesPage from "@/components/favorites/favorites-page";
+import TrashPage from "@/components/trash/trash-page";
+import SettingsPage from "@/components/settings/settings-page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -21,7 +24,8 @@ import {
   Users,
   BarChart3,
   Crown,
-  LogOut
+  LogOut,
+  Archive
 } from "lucide-react";
 
 export default function WorkspacePage() {
@@ -29,10 +33,11 @@ export default function WorkspacePage() {
   const [currentPageId, setCurrentPageId] = useState<number | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showBusinessDashboard, setShowBusinessDashboard] = useState(false);
+  const [currentView, setCurrentView] = useState<'pages' | 'favorites' | 'archived' | 'trash' | 'settings'>('pages');
   
   const { user, isAuthenticated, isLoading } = useAuth();
   const { toast } = useToast();
-  const { isConnected } = useWebSocket(currentWorkspaceId || undefined);
+  const { isConnected, collaborationState, sendMessage } = useWebSocket(currentWorkspaceId || undefined);
 
   // Handle unauthorized errors
   useEffect(() => {
@@ -43,7 +48,7 @@ export default function WorkspacePage() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/auth";
       }, 500);
       return;
     }
@@ -60,7 +65,7 @@ export default function WorkspacePage() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/auth";
         }, 500);
         return false;
       }
@@ -108,7 +113,7 @@ export default function WorkspacePage() {
   }, []);
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    window.location.href = "/api/auth/replit/logout";
   };
 
   if (isLoading) {
@@ -217,12 +222,14 @@ export default function WorkspacePage() {
                 currentPageId={currentPageId}
                 onPageSelect={setCurrentPageId}
                 onOpenCommandPalette={() => setShowCommandPalette(true)}
+                currentView={currentView}
+                onViewChange={setCurrentView}
               />
             )}
             
             {/* Main Editor */}
             <main className="flex-1 relative">
-              {currentPageId ? (
+              {currentView === 'pages' && currentPageId ? (
                 <>
                   <PageEditor pageId={currentPageId} />
                   {currentWorkspaceId && (
@@ -232,6 +239,34 @@ export default function WorkspacePage() {
                     />
                   )}
                 </>
+              ) : currentView === 'favorites' ? (
+                <FavoritesPage 
+                  workspaceId={currentWorkspaceId!} 
+                  onPageSelect={setCurrentPageId}
+                  currentPageId={currentPageId}
+                />
+              ) : currentView === 'trash' ? (
+                <TrashPage 
+                  workspaceId={currentWorkspaceId!} 
+                  onPageSelect={setCurrentPageId}
+                  currentPageId={currentPageId}
+                />
+              ) : currentView === 'settings' ? (
+                <SettingsPage workspaceId={currentWorkspaceId!} />
+              ) : currentView === 'archived' ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto">
+                      <Archive className="h-8 w-8 text-blue-600 dark:text-blue-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Archived Pages</h3>
+                      <p className="text-muted-foreground">
+                        Archived pages will appear here
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center space-y-4">

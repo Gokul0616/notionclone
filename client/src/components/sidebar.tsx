@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +27,17 @@ interface SidebarProps {
   currentPageId: number | null;
   onPageSelect: (pageId: number) => void;
   onOpenCommandPalette: () => void;
+  currentView: 'pages' | 'favorites' | 'archived' | 'trash' | 'settings';
+  onViewChange: (view: 'pages' | 'favorites' | 'archived' | 'trash' | 'settings') => void;
 }
 
-export default function Sidebar({ currentPageId, onPageSelect, onOpenCommandPalette }: SidebarProps) {
+export default function Sidebar({ 
+  currentPageId, 
+  onPageSelect, 
+  onOpenCommandPalette, 
+  currentView, 
+  onViewChange 
+}: SidebarProps) {
   const [expandedPages, setExpandedPages] = useState<Set<number>>(new Set());
   const [newPageTitle, setNewPageTitle] = useState("");
   const [showNewPageInput, setShowNewPageInput] = useState(false);
@@ -43,34 +52,34 @@ export default function Sidebar({ currentPageId, onPageSelect, onOpenCommandPale
   
   const workspaceId = workspaces?.[0]?.id;
 
+  // Use WebSocket for real-time operations
+  const { 
+    isConnected, 
+    collaborationState, 
+    createPage: createPageWS, 
+    toggleFavorite, 
+    archivePage, 
+    restorePage, 
+    permanentDelete 
+  } = useWebSocket(workspaceId);
+
   const { data: pages, isLoading } = useQuery({
     queryKey: [`/api/workspaces/${workspaceId}/pages`],
     enabled: !!workspaceId,
   });
 
-  const createPageMutation = useMutation({
-    mutationFn: async (pageData: { title: string; parentId?: number; workspaceId: number }) => {
-      const response = await apiRequest('POST', '/api/pages', pageData);
-      return await response.json();
-    },
-    onSuccess: (page) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/workspaces/${workspaceId}/pages`] });
-      setNewPageTitle("");
-      setShowNewPageInput(false);
-      onPageSelect(page.id);
-      toast({
-        title: "Page created",
-        description: `"${page.title}" has been created`,
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to create page",
-        variant: "destructive",
-      });
-    },
-  });
+  const handleCreatePage = (title: string, parentId?: number) => {
+    if (!workspaceId) return;
+    
+    createPageWS(title, parentId);
+    setNewPageTitle("");
+    setShowNewPageInput(false);
+    
+    toast({
+      title: "Page created",
+      description: `"${title}" has been created`,
+    });
+  };
 
   const toggleExpanded = (pageId: number) => {
     const newExpanded = new Set(expandedPages);
@@ -82,17 +91,14 @@ export default function Sidebar({ currentPageId, onPageSelect, onOpenCommandPale
     setExpandedPages(newExpanded);
   };
 
-  const handleCreatePage = () => {
+  const handleCreatePageClick = () => {
     if (!newPageTitle.trim() || !workspaceId) return;
-    createPageMutation.mutate({
-      title: newPageTitle,
-      workspaceId,
-    });
+    handleCreatePage(newPageTitle.trim());
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleCreatePage();
+      handleCreatePageClick();
     } else if (e.key === 'Escape') {
       setShowNewPageInput(false);
       setNewPageTitle("");
@@ -253,23 +259,63 @@ export default function Sidebar({ currentPageId, onPageSelect, onOpenCommandPale
       {/* Footer */}
       <div className="p-4 border-t">
         <div className="space-y-1">
-          <Button variant="ghost" className="w-full justify-start text-sm">
+          <Button 
+            variant={currentView === 'favorites' ? 'secondary' : 'ghost'} 
+            className="w-full justify-start text-sm"
+            onClick={() => onViewChange('favorites')}
+          >
             <Star className="h-4 w-4 mr-2" />
             Favorites
+            {collaborationState.favorites.size > 0 && (
+              <Badge variant="secondary" className="ml-auto">
+                {collaborationState.favorites.size}
+              </Badge>
+            )}
           </Button>
-          <Button variant="ghost" className="w-full justify-start text-sm">
+          <Button 
+            variant={currentView === 'archived' ? 'secondary' : 'ghost'} 
+            className="w-full justify-start text-sm"
+            onClick={() => onViewChange('archived')}
+          >
             <Archive className="h-4 w-4 mr-2" />
             Archived
+            {collaborationState.archived.size > 0 && (
+              <Badge variant="secondary" className="ml-auto">
+                {collaborationState.archived.size}
+              </Badge>
+            )}
           </Button>
-          <Button variant="ghost" className="w-full justify-start text-sm">
+          <Button 
+            variant={currentView === 'trash' ? 'secondary' : 'ghost'} 
+            className="w-full justify-start text-sm"
+            onClick={() => onViewChange('trash')}
+          >
             <Trash2 className="h-4 w-4 mr-2" />
             Trash
+            {collaborationState.trash.size > 0 && (
+              <Badge variant="secondary" className="ml-auto">
+                {collaborationState.trash.size}
+              </Badge>
+            )}
           </Button>
-          <Button variant="ghost" className="w-full justify-start text-sm">
+          <Button 
+            variant={currentView === 'settings' ? 'secondary' : 'ghost'} 
+            className="w-full justify-start text-sm"
+            onClick={() => onViewChange('settings')}
+          >
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </Button>
         </div>
+        
+        {isConnected && (
+          <div className="mt-4 p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <div className="flex items-center text-green-600 dark:text-green-400">
+              <div className="h-2 w-2 bg-green-500 rounded-full mr-2"></div>
+              <span className="text-xs">Connected - Real-time sync</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
