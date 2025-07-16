@@ -19,6 +19,8 @@ export const users = pgTable("users", {
 export const workspaces = pgTable("workspaces", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  type: text("type").default("personal"), // personal, business
+  description: text("description"),
   icon: text("icon").default("🏢"),
   domain: text("domain").unique(),
   ownerId: varchar("owner_id").notNull(),
