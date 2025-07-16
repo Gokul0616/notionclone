@@ -425,11 +425,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/blocks", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log("=== BLOCK CREATION DEBUG ===");
+      console.log("User ID:", userId);
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      
       const blockData = insertBlockSchema.parse({
         ...req.body,
         createdBy: userId,
         lastEditedBy: userId
       });
+      
+      console.log("Parsed block data:", JSON.stringify(blockData, null, 2));
       
       // Check page access
       const page = await storage.getPage(blockData.pageId);
@@ -453,7 +459,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(block);
     } catch (error) {
-      res.status(400).json({ error: "Invalid block data" });
+      console.error("=== BLOCK CREATION ERROR ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+      }
+      res.status(400).json({ error: "Invalid block data", details: error.message });
     }
   });
 

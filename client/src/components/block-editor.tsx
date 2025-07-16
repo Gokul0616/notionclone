@@ -216,7 +216,7 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
   const queryClient = useQueryClient();
 
   const createBlockMutation = useMutation({
-    mutationFn: async (blockData: { type: string; pageId: number; order: number }) => {
+    mutationFn: async (blockData: { type: string; pageId: number; position: number }) => {
       const response = await apiRequest('POST', '/api/blocks', {
         ...blockData,
         content: { text: "" }
@@ -275,12 +275,12 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
 
   const handleCreateBlock = (type: string, afterBlockId?: number) => {
     const afterIndex = afterBlockId ? blocks.findIndex(b => b.id === afterBlockId) : -1;
-    const order = afterIndex >= 0 ? blocks[afterIndex].order + 1 : blocks.length;
+    const position = afterIndex >= 0 ? blocks[afterIndex].position + 1 : blocks.length;
     
     createBlockMutation.mutate({
       type,
       pageId,
-      order
+      position
     });
   };
 
@@ -288,7 +288,7 @@ export default function BlockEditor({ pageId, blocks }: BlockEditorProps) {
     deleteBlockMutation.mutate(blockId);
   };
 
-  const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
+  const sortedBlocks = [...blocks].sort((a, b) => a.position - b.position);
 
   return (
     <div className="space-y-2">
