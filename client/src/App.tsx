@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Workspace from "@/pages/workspace";
 import LandingPage from "@/components/auth/landing-page";
+import AuthPage from "@/pages/auth-page";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -13,7 +14,10 @@ function Router() {
   return (
     <Switch>
       {isLoading || !isAuthenticated ? (
-        <Route path="/" component={LandingPage} />
+        <>
+          <Route path="/auth" component={AuthPage} />
+          <Route path="/" component={LandingPage} />
+        </>
       ) : (
         <>
           <Route path="/" component={Workspace} />

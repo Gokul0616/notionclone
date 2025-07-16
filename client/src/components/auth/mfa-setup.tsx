@@ -1,128 +1,290 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Shield, 
-  Smartphone, 
-  Download, 
-  Copy, 
-  Check, 
-  AlertTriangle,
-  Key
-} from "lucide-react";
-import { generateBackupCodes, formatBackupCode } from "@/lib/mfa-utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Shield, Key, Download, AlertTriangle, CheckCircle, RefreshCw, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import QRCode from "qrcode";
 
-interface MFASetupProps {
-  onComplete: (backupCodes: string[]) => void;
+interface MFASetup {
+  isEnabled: boolean;
+  secret?: string;
+  qrCode?: string;
+  backupCodes?: string[];
+  lastUsed?: string;
 }
 
-export default function MFASetup({ onComplete }: MFASetupProps) {
-  const [step, setStep] = useState(1);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
-  const [copiedCodes, setCopiedCodes] = useState(false);
+export default function MFASetup() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [verificationCode, setVerificationCode] = useState("");
+  const [showBackupCodes, setShowBackupCodes] = useState(false);
+  const [showSetupDialog, setShowSetupDialog] = useState(false);
 
-  const handleGenerateBackupCodes = () => {
-    const codes = generateBackupCodes(10);
-    const codeStrings = codes.map(c => c.code);
-    setBackupCodes(codeStrings);
-    setStep(2);
-  };
+  const { data: mfaStatus, isLoading } = useQuery<MFASetup>({
+    queryKey: ['/api/auth/mfa/status'],
+  });
 
-  const handleCopyBackupCodes = async () => {
-    const codesText = backupCodes.map(code => formatBackupCode(code)).join('\n');
-    try {
-      await navigator.clipboard.writeText(codesText);
-      setCopiedCodes(true);
+  const setupMFAMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/auth/mfa/setup');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/auth/mfa/status'], data);
+      setShowSetupDialog(true);
+    },
+    onError: () => {
       toast({
-        title: "Backup codes copied",
-        description: "Store these codes in a safe place",
-      });
-    } catch (error) {
-      toast({
-        title: "Failed to copy",
-        description: "Please manually copy the backup codes",
+        title: "Setup failed",
+        description: "Failed to setup MFA. Please try again.",
         variant: "destructive",
+      });
+    },
+  });
+
+  const enableMFAMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const response = await apiRequest('POST', '/api/auth/mfa/enable', { code });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/auth/mfa/status'], data);
+      setShowSetupDialog(false);
+      setShowBackupCodes(true);
+      toast({
+        title: "MFA enabled",
+        description: "Multi-factor authentication has been enabled successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Verification failed",
+        description: "Invalid verification code. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const disableMFAMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/auth/mfa/disable');
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/mfa/status'] });
+      toast({
+        title: "MFA disabled",
+        description: "Multi-factor authentication has been disabled.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Disable failed",
+        description: "Failed to disable MFA. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateBackupCodesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/auth/mfa/backup-codes');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/auth/mfa/status'], data);
+      setShowBackupCodes(true);
+      toast({
+        title: "Backup codes generated",
+        description: "New backup codes have been generated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate backup codes. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyBackupCodes = () => {
+    if (mfaStatus?.backupCodes) {
+      navigator.clipboard.writeText(mfaStatus.backupCodes.join('\n'));
+      toast({
+        title: "Copied",
+        description: "Backup codes copied to clipboard.",
       });
     }
   };
 
-  const handleDownloadBackupCodes = () => {
-    const codesText = backupCodes.map(code => formatBackupCode(code)).join('\n');
-    const blob = new Blob([`Backup Codes for Multi-Factor Authentication\n\n${codesText}\n\nKeep these codes safe. Each code can only be used once.`], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'backup-codes.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const downloadBackupCodes = () => {
+    if (mfaStatus?.backupCodes) {
+      const blob = new Blob([mfaStatus.backupCodes.join('\n')], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-codes-${new Date().toISOString().split('T')[0]}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
-  const handleComplete = () => {
-    onComplete(backupCodes);
-  };
+  if (isLoading) {
+    return <div className="p-8">Loading MFA settings...</div>;
+  }
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-          <Shield className="h-6 w-6 text-blue-600" />
-        </div>
-        <h2 className="text-2xl font-bold">Secure Your Account</h2>
-        <p className="text-muted-foreground">
-          Set up multi-factor authentication to protect your workspace
-        </p>
-      </div>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Shield className="h-5 w-5" />
+              <CardTitle>Multi-Factor Authentication</CardTitle>
+            </div>
+            <Badge variant={mfaStatus?.isEnabled ? "default" : "secondary"}>
+              {mfaStatus?.isEnabled ? "Enabled" : "Disabled"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-muted-foreground">
+            Add an extra layer of security to your account by enabling multi-factor authentication.
+          </p>
 
-      {step === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Key className="h-5 w-5" />
-              <span>Generate Backup Codes</span>
-            </CardTitle>
-            <CardDescription>
-              First, let's create backup codes you can use if you lose access to your device
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          {!mfaStatus?.isEnabled ? (
+            <div className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  MFA is currently disabled. Enable it to secure your account with an additional verification step.
+                </AlertDescription>
+              </Alert>
+              
+              <Button 
+                onClick={() => setupMFAMutation.mutate()}
+                disabled={setupMFAMutation.isPending}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                {setupMFAMutation.isPending ? 'Setting up...' : 'Enable MFA'}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  MFA is enabled. Your account is protected with two-factor authentication.
+                  {mfaStatus.lastUsed && (
+                    <span className="block mt-1 text-sm">
+                      Last used: {new Date(mfaStatus.lastUsed).toLocaleString()}
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex space-x-4">
+                <Button 
+                  variant="outline"
+                  onClick={() => generateBackupCodesMutation.mutate()}
+                  disabled={generateBackupCodesMutation.isPending}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Generate New Backup Codes
+                </Button>
+                
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowBackupCodes(true)}
+                >
+                  <Key className="h-4 w-4 mr-2" />
+                  View Backup Codes
+                </Button>
+                
+                <Button 
+                  variant="destructive"
+                  onClick={() => disableMFAMutation.mutate()}
+                  disabled={disableMFAMutation.isPending}
+                >
+                  Disable MFA
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Setup Dialog */}
+      <Dialog open={showSetupDialog} onOpenChange={setShowSetupDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Setup Multi-Factor Authentication</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                Scan this QR code with your authenticator app
+              </p>
+              {mfaStatus?.qrCode && (
+                <img 
+                  src={mfaStatus.qrCode} 
+                  alt="QR Code" 
+                  className="mx-auto border rounded-lg"
+                  width={200}
+                  height={200}
+                />
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="verification-code">Enter verification code</Label>
+              <Input
+                id="verification-code"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+              />
+            </div>
+            
+            <Button 
+              onClick={() => enableMFAMutation.mutate(verificationCode)}
+              disabled={enableMFAMutation.isPending || !verificationCode}
+              className="w-full"
+            >
+              {enableMFAMutation.isPending ? 'Verifying...' : 'Enable MFA'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup Codes Dialog */}
+      <Dialog open={showBackupCodes} onOpenChange={setShowBackupCodes}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Backup Codes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Backup codes are your safety net. Store them securely - each code can only be used once.
+                Save these backup codes in a safe place. You can use them to access your account if you lose your authenticator device.
               </AlertDescription>
             </Alert>
-            <Button onClick={handleGenerateBackupCodes} className="w-full">
-              Generate Backup Codes
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Backup Codes</CardTitle>
-            <CardDescription>
-              Save these codes in a safe place. You'll need them if you lose your device.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            
             <div className="bg-muted p-4 rounded-lg">
               <div className="grid grid-cols-2 gap-2 font-mono text-sm">
-                {backupCodes.map((code, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <Badge variant="outline" className="font-mono">
-                      {formatBackupCode(code)}
-                    </Badge>
+                {mfaStatus?.backupCodes?.map((code, index) => (
+                  <div key={index} className="p-2 bg-background rounded border">
+                    {code}
                   </div>
                 ))}
               </div>
@@ -131,91 +293,24 @@ export default function MFASetup({ onComplete }: MFASetupProps) {
             <div className="flex space-x-2">
               <Button 
                 variant="outline" 
-                onClick={handleCopyBackupCodes}
+                onClick={copyBackupCodes}
                 className="flex-1"
               >
-                {copiedCodes ? (
-                  <Check className="h-4 w-4 mr-2" />
-                ) : (
-                  <Copy className="h-4 w-4 mr-2" />
-                )}
-                Copy Codes
+                <Copy className="h-4 w-4 mr-2" />
+                Copy
               </Button>
               <Button 
                 variant="outline" 
-                onClick={handleDownloadBackupCodes}
+                onClick={downloadBackupCodes}
                 className="flex-1"
               >
                 <Download className="h-4 w-4 mr-2" />
                 Download
               </Button>
             </div>
-            
-            <Alert>
-              <Shield className="h-4 w-4" />
-              <AlertDescription>
-                Each backup code can only be used once. Generate new codes if you run out.
-              </AlertDescription>
-            </Alert>
-            
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <input 
-                  type="checkbox" 
-                  id="saved-codes" 
-                  className="rounded border-gray-300"
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setStep(3);
-                    }
-                  }}
-                />
-                <Label htmlFor="saved-codes" className="text-sm">
-                  I have saved my backup codes in a safe place
-                </Label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Smartphone className="h-5 w-5" />
-              <span>Setup Complete</span>
-            </CardTitle>
-            <CardDescription>
-              Your account is now protected with multi-factor authentication
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <Check className="h-8 w-8 text-green-600" />
-              </div>
-              <div>
-                <h3 className="font-medium">Multi-Factor Authentication Enabled</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your account is now more secure with backup code authentication
-                </p>
-              </div>
-            </div>
-            
-            <Alert>
-              <Shield className="h-4 w-4" />
-              <AlertDescription>
-                You can manage your security settings and generate new backup codes from your account settings.
-              </AlertDescription>
-            </Alert>
-            
-            <Button onClick={handleComplete} className="w-full">
-              Continue to Workspace
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

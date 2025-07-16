@@ -474,11 +474,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const blockId = parseInt(req.params.id);
       const userId = req.user.claims.sub;
       
-      const existingBlock = await storage.getBlocksByPageId(req.body.pageId || 0);
-      const block = existingBlock.find(b => b.id === blockId);
+      console.log("=== BLOCK UPDATE DEBUG ===");
+      console.log("Block ID:", blockId);
+      console.log("User ID:", userId);
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      
+      // Get block directly from storage
+      const block = await storage.getBlockById(blockId);
       if (!block) {
+        console.log("Block not found with ID:", blockId);
         return res.status(404).json({ error: "Block not found" });
       }
+      
+      console.log("Found block:", JSON.stringify(block, null, 2));
       
       const page = await storage.getPage(block.pageId);
       if (!page) {
@@ -495,6 +503,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastEditedBy: userId
       });
       
+      console.log("Update data:", JSON.stringify(blockData, null, 2));
+      
       const updatedBlock = await storage.updateBlock(blockId, blockData);
       
       // Broadcast block update
@@ -507,7 +517,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedBlock);
     } catch (error) {
-      res.status(400).json({ error: "Invalid block data" });
+      console.error("=== BLOCK UPDATE ERROR ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+      }
+      res.status(400).json({ error: "Invalid block data", details: error.message });
     }
   });
 

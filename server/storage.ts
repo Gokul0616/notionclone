@@ -1,5 +1,6 @@
 import { 
   users, workspaces, workspaceMembers, invitations, templates, pages, blocks, comments, activities, notifications,
+  calendarEvents, emailThreads, emailMessages, userMFA, businessPages, pageShares, collaborationCursors, livePresence,
   type User, type UpsertUser, type InsertUser,
   type Workspace, type InsertWorkspace, type UpdateWorkspace,
   type WorkspaceMember, type InsertWorkspaceMember,
@@ -9,10 +10,19 @@ import {
   type Block, type InsertBlock, type UpdateBlock,
   type Comment, type InsertComment,
   type Activity, type InsertActivity,
-  type Notification, type InsertNotification
+  type Notification, type InsertNotification,
+  type CalendarEvent, type InsertCalendarEvent,
+  type EmailThread, type InsertEmailThread,
+  type EmailMessage, type InsertEmailMessage,
+  type UserMFA, type InsertUserMFA,
+  type BusinessPage, type InsertBusinessPage,
+  type PageShare, type InsertPageShare,
+  type CollaborationCursor, type InsertCollaborationCursor,
+  type LivePresence, type InsertLivePresence
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, asc, like, inArray } from "drizzle-orm";
+import { cache } from "./cache";
 
 export interface IStorage {
   // User operations
@@ -62,6 +72,7 @@ export interface IStorage {
   
   // Block operations
   getBlocksByPageId(pageId: number): Promise<Block[]>;
+  getBlockById(id: number): Promise<Block | undefined>;
   createBlock(block: InsertBlock): Promise<Block>;
   updateBlock(id: number, updates: UpdateBlock): Promise<Block | undefined>;
   deleteBlock(id: number): Promise<boolean>;
@@ -89,7 +100,16 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
+    // Check cache first
+    const cachedUser = cache.getUser(id);
+    if (cachedUser) {
+      return cachedUser;
+    }
+    
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    if (user) {
+      cache.setUser(id, user);
+    }
     return user || undefined;
   }
 
@@ -110,7 +130,16 @@ export class DatabaseStorage implements IStorage {
 
   // Workspace operations
   async getWorkspace(id: number): Promise<Workspace | undefined> {
+    // Check cache first
+    const cachedWorkspace = cache.getWorkspace(id);
+    if (cachedWorkspace) {
+      return cachedWorkspace;
+    }
+    
     const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+    if (workspace) {
+      cache.setWorkspace(id, workspace);
+    }
     return workspace || undefined;
   }
 
@@ -150,10 +179,10 @@ export class DatabaseStorage implements IStorage {
       return newWorkspace;
     } catch (error) {
       console.error("=== STORAGE ERROR ===");
-      console.error("Error inserting workspace:", error);
-      console.error("Error details:", error.message);
-      if (error.code) {
-        console.error("Database error code:", error.code);
+      console.error("Error inserting workspace:", error as Error);
+      console.error("Error details:", (error as Error).message);
+      if ((error as any).code) {
+        console.error("Database error code:", (error as any).code);
       }
       throw error;
     }
@@ -248,14 +277,14 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(templates);
     
     if (workspaceId && category) {
-      query = query.where(and(eq(templates.workspaceId, workspaceId), eq(templates.category, category)));
+      return await db.select().from(templates).where(and(eq(templates.workspaceId, workspaceId), eq(templates.category, category)));
     } else if (workspaceId) {
-      query = query.where(eq(templates.workspaceId, workspaceId));
+      return await db.select().from(templates).where(eq(templates.workspaceId, workspaceId));
     } else if (category) {
-      query = query.where(eq(templates.category, category));
+      return await db.select().from(templates).where(eq(templates.category, category));
     }
     
-    return await query;
+    return await db.select().from(templates);
   }
 
   async getTemplate(id: number): Promise<Template | undefined> {
@@ -284,7 +313,16 @@ export class DatabaseStorage implements IStorage {
 
   // Page operations
   async getPage(id: number): Promise<Page | undefined> {
+    // Check cache first
+    const cachedPage = cache.getPage(id);
+    if (cachedPage) {
+      return cachedPage;
+    }
+    
     const [page] = await db.select().from(pages).where(and(eq(pages.id, id), eq(pages.isDeleted, false)));
+    if (page) {
+      cache.setPage(id, page);
+    }
     return page || undefined;
   }
 
@@ -390,7 +428,20 @@ export class DatabaseStorage implements IStorage {
 
   // Block operations
   async getBlocksByPageId(pageId: number): Promise<Block[]> {
-    return await db.select().from(blocks).where(eq(blocks.pageId, pageId)).orderBy(asc(blocks.position));
+    // Check cache first
+    const cachedBlocks = cache.getBlocks(pageId);
+    if (cachedBlocks) {
+      return cachedBlocks;
+    }
+    
+    const blockResults = await db.select().from(blocks).where(eq(blocks.pageId, pageId)).orderBy(asc(blocks.position));
+    cache.setBlocks(pageId, blockResults);
+    return blockResults;
+  }
+
+  async getBlockById(id: number): Promise<Block | undefined> {
+    const [block] = await db.select().from(blocks).where(eq(blocks.id, id));
+    return block || undefined;
   }
 
   async createBlock(block: InsertBlock): Promise<Block> {
@@ -404,6 +455,12 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(blocks.id, id))
       .returning();
+    
+    // Invalidate cache for the page containing this block
+    if (block) {
+      cache.invalidateBlocks(block.pageId);
+    }
+    
     return block || undefined;
   }
 
@@ -501,6 +558,168 @@ export class DatabaseStorage implements IStorage {
       .set({ isRead: true })
       .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
     return result.rowCount! > 0;
+  }
+
+  // MFA Methods
+  async getMFASettings(userId: string): Promise<UserMFA | undefined> {
+    try {
+      const [mfa] = await db.select().from(userMFA).where(eq(userMFA.userId, userId));
+      return mfa;
+    } catch (error) {
+      console.error('Error getting MFA settings:', error);
+      return undefined;
+    }
+  }
+
+  async setupMFA(userId: string, secret: string): Promise<UserMFA> {
+    const [mfa] = await db.insert(userMFA).values({
+      userId,
+      secret,
+      backupCodes: [],
+      isEnabled: false
+    }).returning();
+    return mfa;
+  }
+
+  async enableMFA(userId: string, backupCodes: string[]): Promise<UserMFA> {
+    const [mfa] = await db.update(userMFA)
+      .set({ isEnabled: true, backupCodes, lastUsed: new Date() })
+      .where(eq(userMFA.userId, userId))
+      .returning();
+    return mfa;
+  }
+
+  async disableMFA(userId: string): Promise<boolean> {
+    try {
+      await db.delete(userMFA).where(eq(userMFA.userId, userId));
+      return true;
+    } catch (error) {
+      console.error('Error disabling MFA:', error);
+      return false;
+    }
+  }
+
+  async generateBackupCodes(userId: string): Promise<string[]> {
+    const codes = Array.from({ length: 8 }, () => 
+      Math.random().toString(36).substring(2, 15).toUpperCase()
+    );
+    
+    await db.update(userMFA)
+      .set({ backupCodes: codes })
+      .where(eq(userMFA.userId, userId));
+    
+    return codes;
+  }
+
+  // Business Page Methods
+  async getBusinessPages(workspaceId: number): Promise<BusinessPage[]> {
+    return await db.select().from(businessPages).where(eq(businessPages.workspaceId, workspaceId));
+  }
+
+  async createBusinessPage(businessPage: InsertBusinessPage): Promise<BusinessPage> {
+    const [page] = await db.insert(businessPages).values(businessPage).returning();
+    return page;
+  }
+
+  async updateBusinessPage(id: number, updates: Partial<BusinessPage>): Promise<BusinessPage | undefined> {
+    const [page] = await db.update(businessPages)
+      .set(updates)
+      .where(eq(businessPages.id, id))
+      .returning();
+    return page;
+  }
+
+  async deleteBusinessPage(id: number): Promise<boolean> {
+    try {
+      await db.delete(businessPages).where(eq(businessPages.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting business page:', error);
+      return false;
+    }
+  }
+
+  // Page Sharing Methods
+  async getPageShare(pageId: number): Promise<PageShare | undefined> {
+    const [share] = await db.select().from(pageShares).where(eq(pageShares.pageId, pageId));
+    return share;
+  }
+
+  async createPageShare(pageShare: InsertPageShare): Promise<PageShare> {
+    const [share] = await db.insert(pageShares).values(pageShare).returning();
+    return share;
+  }
+
+  async updatePageShare(id: number, updates: Partial<PageShare>): Promise<PageShare | undefined> {
+    const [share] = await db.update(pageShares)
+      .set(updates)
+      .where(eq(pageShares.id, id))
+      .returning();
+    return share;
+  }
+
+  async deletePageShare(id: number): Promise<boolean> {
+    try {
+      await db.delete(pageShares).where(eq(pageShares.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting page share:', error);
+      return false;
+    }
+  }
+
+  async getSharedPage(token: string): Promise<PageShare | undefined> {
+    const [share] = await db.select().from(pageShares).where(eq(pageShares.token, token));
+    return share;
+  }
+
+  // Collaboration Methods
+  async logCollaborationCursor(cursor: InsertCollaborationCursor): Promise<CollaborationCursor> {
+    const [cursorData] = await db.insert(collaborationCursors).values(cursor).returning();
+    return cursorData;
+  }
+
+  async getPageCursors(pageId: number): Promise<CollaborationCursor[]> {
+    return await db.select().from(collaborationCursors)
+      .where(eq(collaborationCursors.pageId, pageId))
+      .orderBy(desc(collaborationCursors.timestamp));
+  }
+
+  async updateLivePresence(presence: InsertLivePresence): Promise<LivePresence> {
+    const [presenceData] = await db.insert(livePresence).values(presence).returning();
+    return presenceData;
+  }
+
+  async getPagePresence(pageId: number): Promise<LivePresence[]> {
+    return await db.select().from(livePresence)
+      .where(eq(livePresence.pageId, pageId))
+      .orderBy(desc(livePresence.lastSeen));
+  }
+
+  async cleanupOldCursors(olderThan: Date): Promise<boolean> {
+    try {
+      await db.delete(collaborationCursors)
+        .where(and(
+          eq(collaborationCursors.timestamp, olderThan)
+        ));
+      return true;
+    } catch (error) {
+      console.error('Error cleaning up old cursors:', error);
+      return false;
+    }
+  }
+
+  async cleanupOldPresence(olderThan: Date): Promise<boolean> {
+    try {
+      await db.delete(livePresence)
+        .where(and(
+          eq(livePresence.lastSeen, olderThan)
+        ));
+      return true;
+    } catch (error) {
+      console.error('Error cleaning up old presence:', error);
+      return false;
+    }
   }
 }
 

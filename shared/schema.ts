@@ -11,8 +11,109 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   username: varchar("username").unique(),
   preferences: jsonb("preferences"), // user settings, theme, etc.
+  timezone: varchar("timezone").default("UTC"),
+  theme: varchar("theme").default("system"),
+  language: varchar("language").default("en"),
+  notifications: jsonb("notifications").$type<{
+    email: boolean;
+    desktop: boolean;
+    mentions: boolean;
+    comments: boolean;
+  }>().default({
+    email: true,
+    desktop: true,
+    mentions: true,
+    comments: true,
+  }),
+  privacy: jsonb("privacy").$type<{
+    profileVisible: boolean;
+    activityVisible: boolean;
+  }>().default({
+    profileVisible: true,
+    activityVisible: true,
+  }),
+  gmailRefreshToken: varchar("gmail_refresh_token"),
+  gmailAccessToken: varchar("gmail_access_token"),
+  gmailTokenExpiry: timestamp("gmail_token_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Multi-factor authentication table
+export const userMFA = pgTable("user_mfa", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  secret: varchar("secret").notNull(),
+  backupCodes: jsonb("backup_codes").$type<string[]>().default([]),
+  isEnabled: boolean("is_enabled").default(false),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Business pages table for enterprise features
+export const businessPages = pgTable("business_pages", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").notNull(),
+  pageId: integer("page_id").notNull(),
+  businessType: text("business_type").notNull(), // dashboard, analytics, reports, etc.
+  configuration: jsonb("configuration").default({}),
+  permissions: jsonb("permissions").$type<{
+    canView: string[];
+    canEdit: string[];
+    canShare: string[];
+    canAnalyze: string[];
+  }>().default({
+    canView: [],
+    canEdit: [],
+    canShare: [],
+    canAnalyze: []
+  }),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Sharing and collaboration table
+export const pageShares = pgTable("page_shares", {
+  id: serial("id").primaryKey(),
+  pageId: integer("page_id").notNull(),
+  sharedBy: varchar("shared_by").notNull(),
+  sharedWith: varchar("shared_with"), // null for public shares
+  shareType: text("share_type").notNull(), // public, private, workspace
+  permissions: text("permissions").notNull(), // view, edit, comment
+  token: varchar("token").notNull().unique(),
+  password: varchar("password"), // optional password protection
+  expiresAt: timestamp("expires_at"),
+  allowDownload: boolean("allow_download").default(false),
+  allowComments: boolean("allow_comments").default(true),
+  isActive: boolean("is_active").default(true),
+  viewCount: integer("view_count").default(0),
+  lastAccessed: timestamp("last_accessed"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Real-time collaboration cursors
+export const collaborationCursors = pgTable("collaboration_cursors", {
+  id: serial("id").primaryKey(),
+  pageId: integer("page_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  x: integer("x").notNull(),
+  y: integer("y").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+  sessionId: varchar("session_id").notNull(),
+});
+
+// Live presence tracking
+export const livePresence = pgTable("live_presence", {
+  id: serial("id").primaryKey(),
+  pageId: integer("page_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  status: text("status").notNull(), // active, typing, viewing
+  lastSeen: timestamp("last_seen").defaultNow(),
+  currentBlock: integer("current_block"),
+  sessionId: varchar("session_id").notNull(),
 });
 
 // Workspaces table - team workspaces
@@ -153,6 +254,70 @@ export const sessions = pgTable("sessions", {
   expire: timestamp("expire").notNull(),
 });
 
+// Calendar events table
+export const calendarEvents = pgTable("calendar_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  location: text("location"),
+  type: text("type").notNull(), // meeting, task, reminder, deadline
+  attendees: jsonb("attendees").$type<string[]>().default([]),
+  workspaceId: integer("workspace_id").notNull(),
+  pageId: integer("page_id"), // optional link to page
+  createdBy: varchar("created_by").notNull(),
+  isAllDay: boolean("is_all_day").default(false),
+  recurrence: text("recurrence").default("none"), // none, daily, weekly, monthly
+  status: text("status").default("confirmed"), // confirmed, tentative, cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email threads table for Gmail integration
+export const emailThreads = pgTable("email_threads", {
+  id: varchar("id").primaryKey(),
+  gmailThreadId: varchar("gmail_thread_id").notNull(),
+  subject: text("subject").notNull(),
+  participants: jsonb("participants").$type<string[]>().default([]),
+  messageCount: integer("message_count").default(1),
+  lastMessageDate: timestamp("last_message_date").notNull(),
+  isRead: boolean("is_read").default(false),
+  isStarred: boolean("is_starred").default(false),
+  labels: jsonb("labels").$type<string[]>().default([]),
+  workspaceId: integer("workspace_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email messages table
+export const emailMessages = pgTable("email_messages", {
+  id: varchar("id").primaryKey(),
+  gmailMessageId: varchar("gmail_message_id").notNull(),
+  threadId: varchar("thread_id").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  fromEmail: text("from_email").notNull(),
+  toEmails: jsonb("to_emails").$type<string[]>().default([]),
+  ccEmails: jsonb("cc_emails").$type<string[]>().default([]),
+  bccEmails: jsonb("bcc_emails").$type<string[]>().default([]),
+  date: timestamp("date").notNull(),
+  isRead: boolean("is_read").default(false),
+  isStarred: boolean("is_starred").default(false),
+  labels: jsonb("labels").$type<string[]>().default([]),
+  attachments: jsonb("attachments").$type<Array<{
+    filename: string;
+    size: number;
+    contentType: string;
+    attachmentId: string;
+  }>>().default([]),
+  workspaceId: integer("workspace_id").notNull(),
+  relatedPageId: integer("related_page_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Schema definitions
 export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
@@ -211,6 +376,50 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
 });
 
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertEmailThreadSchema = createInsertSchema(emailThreads).omit({
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertUserMFASchema = createInsertSchema(userMFA).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertBusinessPageSchema = createInsertSchema(businessPages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPageShareSchema = createInsertSchema(pageShares).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertCollaborationCursorSchema = createInsertSchema(collaborationCursors).omit({
+  id: true,
+  timestamp: true
+});
+
+export const insertLivePresenceSchema = createInsertSchema(livePresence).omit({
+  id: true,
+  lastSeen: true
+});
+
 export const updatePageSchema = insertPageSchema.partial();
 export const updateBlockSchema = insertBlockSchema.partial();
 export const updateWorkspaceSchema = insertWorkspaceSchema.partial();
@@ -249,6 +458,30 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+
+export type EmailThread = typeof emailThreads.$inferSelect;
+export type InsertEmailThread = z.infer<typeof insertEmailThreadSchema>;
+
+export type EmailMessage = typeof emailMessages.$inferSelect;
+export type InsertEmailMessage = z.infer<typeof insertEmailMessageSchema>;
+
+export type UserMFA = typeof userMFA.$inferSelect;
+export type InsertUserMFA = z.infer<typeof insertUserMFASchema>;
+
+export type BusinessPage = typeof businessPages.$inferSelect;
+export type InsertBusinessPage = z.infer<typeof insertBusinessPageSchema>;
+
+export type PageShare = typeof pageShares.$inferSelect;
+export type InsertPageShare = z.infer<typeof insertPageShareSchema>;
+
+export type CollaborationCursor = typeof collaborationCursors.$inferSelect;
+export type InsertCollaborationCursor = z.infer<typeof insertCollaborationCursorSchema>;
+
+export type LivePresence = typeof livePresence.$inferSelect;
+export type InsertLivePresence = z.infer<typeof insertLivePresenceSchema>;
 
 export interface PageWithChildren extends Page {
   children?: PageWithChildren[];
