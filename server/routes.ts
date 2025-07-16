@@ -284,11 +284,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/pages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log("=== PAGE CREATION DEBUG ===");
+      console.log("User ID:", userId);
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      
       const pageData = insertPageSchema.parse({
         ...req.body,
         createdBy: userId,
         lastEditedBy: userId
       });
+      
+      console.log("Parsed page data:", JSON.stringify(pageData, null, 2));
       
       // Check workspace access
       const role = await storage.getUserWorkspaceRole(pageData.workspaceId, userId);
@@ -310,7 +316,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(page);
     } catch (error) {
-      res.status(400).json({ error: "Invalid page data" });
+      console.error("=== PAGE CREATION ERROR ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+      }
+      res.status(400).json({ error: "Invalid page data", details: error.message });
     }
   });
 
